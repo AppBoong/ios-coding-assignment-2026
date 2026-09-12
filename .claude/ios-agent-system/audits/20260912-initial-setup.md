@@ -56,10 +56,12 @@
 | 페이지네이션 가드 | ① 진행 중 Task ② `hasMore` ③ 임계 인덱스 `items.count - pageSize + prefetchThreshold - 1` | 성공 기준 2를 코드로 강제. `pageSize`·`prefetchThreshold`는 init 파라미터(테스트에서 작게 주입) |
 | 새로고침 취소 | `refresh()`가 `nextPageTask?.cancel()` 후 새 Task. 완료 시 `Task.isCancelled` 확인해 늦은 응답 폐기. 새로고침 중 다음 페이지 차단 | 상태 역전 방지 |
 | `NetworkError` associated value | `String`(description) | `Error`는 Equatable/Sendable 보장 없음 — 테스트 값 비교 |
+| `NetworkError` HTTP 상태 세분화 | 전용 case: badRequest(400)·unauthorized(401)·forbidden(403)·notFound(404)·requestTimeout(408)·conflict(409)·tooManyRequests(429) · 나머지 4xx `clientError(Int)` · 5xx `serverError(Int)` · 그 외 `unexpectedStatus(Int)`. 매핑은 `init(statusCode:)` 한 곳 | 사용자 요청 2026-09-12 Commit 2 게이트 — 명확한 에러는 case로 구분, 400/500 계열 분리. `httpStatus(Int)` 폐기 |
 | Base URL | `URLSessionHTTPClient`가 `URLComponents(scheme:host:)`를 보관, `Endpoint`가 path·query를 합쳐 `url`이 nil이면 `NetworkError.invalidURL` throw | 아키텍트 초안의 `URL(string:)!` 기본 인자는 강제 언래핑 금지 규칙 위반 — 옵셔널 없는 조립으로 교체 |
 | ImageLoader 전달 | `EnvironmentValues.imageLoader` (인스턴스는 `AppDependencies`가 1개 생성, `JGNRHWApp`이 `.environment`로 주입) | 싱글턴 금지 유지 + 셀 깊이까지 이니셜라이저 전달 회피 |
 | 목록 API 필드 축소 | `select=id,title,price,thumbnail` → `ProductSummaryDTO` 별도 | 원격 응답 책임을 좁힘 |
 | Domain UseCase 테스트 | 별도 없음 (위임형) | 밀도 "테스트 간결" — Data/Presentation 테스트가 간접 검증 |
+| UserDefaults 보관 방식 | `UserDefaultsKeyValueStore`는 `suiteName: String?`만 보관, 호출마다 `UserDefaults(suiteName:) ?? .standard` 접근 | Swift 6 strict에서 Sendable struct가 non-Sendable `UserDefaults`를 저장 프로퍼티로 못 가짐. `@preconcurrency import`로 낮추면 경고가 남고 검사 우회 범주 — 2026-09-12 Commit 2 결정 |
 | Commit 1 생성 방식 | **안 B — 에이전트(opus)가 pbxproj·스킴 직접 작성** (2026-09-12 Step 2.0에서 안 A → 안 B로 변경) | 사용자 지시: Fable은 총괄만, 작업은 서브에이전트 위임. `*.pbxproj` 쓰기는 게이트 ask 승인 1회. 생성 후 showBuildSettings·build·test로 검증 |
 
 ---
@@ -136,7 +138,7 @@ enum Route: Hashable { case productDetail(id: Int) }
 
 | # | 커밋 메시지(안) | 범위 | 직접 검증 포인트 | 상태 |
 |---|----------------|------|-----------------|------|
-| 1 | `chore: scaffold JGNR-HW xcodeproj with Swift 6 strict settings` | xcodeproj(GUI 생성) + 빈 `App/JGNRHWApp.swift` + 더미 테스트 1개 + 레이어 디렉토리 | `[자동]` 빌드·테스트 1개 통과 · `[수동]` 빌드 설정 5개 값 확인 | ⬜ |
+| 1 | `chore: scaffold JGNR-HW xcodeproj with Swift 6 strict settings` | xcodeproj(GUI 생성) + 빈 `App/JGNRHWApp.swift` + 더미 테스트 1개 + 레이어 디렉토리 | `[자동]` 빌드·테스트 1개 통과 · `[수동]` 빌드 설정 5개 값 확인 | ✔️ COMMITTED `a4c3233` (셋업 산출물은 `d2e082b`로 분리) |
 | 2 | `feat(shared): add HTTPClient and KeyValueStore infrastructure` | `Shared/Network/*`, `Shared/LocalStorage/*`, `Tests/Doubles/StubHTTPClient·StubKeyValueStore` | `[자동]` 빌드 통과 | ⬜ |
 | 3 | `feat(domain): add product and favorite entities, repositories, use cases` | `Domain/**`, `Tests/Doubles/StubProductRepository·StubFavoriteRepository` | `[자동]` 빌드 + 아키텍처 검사(Domain import 규칙) | ⬜ |
 | 4 | `feat(data): implement remote product and local favorite repositories` | `Data/**`, `Tests/Data/ProductDTOMappingTests·DefaultFavoriteRepositoryTests` | `[자동]` 테스트 3개 통과(매핑·토글/영속·방송) | ⬜ |
@@ -152,18 +154,18 @@ enum Route: Hashable { case productDetail(id: Int) }
 
 ## 5. 커밋별 상세 & 상태
 
-### Commit 1 — scaffold ⬜
+### Commit 1 — scaffold ✔️ COMMITTED
 - **파일**: `JGNR-HW.xcodeproj/`, `JGNR-HW/App/JGNRHWApp.swift`(`Text("JGNR-HW")`), `JGNR-HWTests/JGNRHWTests.swift`(더미 `@Test` 1개), 빈 디렉토리는 커밋되지 않으므로 레이어 폴더는 각 커밋이 만든다 + 셋업 산출물(`.claude/ios-agent-system/*.md`·`intents/`·`audits/`·`AGENTS.md`·`CLAUDE.md`·`.gitignore`)
 - **완료조건**: `xcodebuild build`·`test` 통과, `xcodebuild -showBuildSettings`에 `SWIFT_VERSION = 6.0`, `SWIFT_STRICT_CONCURRENCY = complete`, `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated`, `IPHONEOS_DEPLOYMENT_TARGET = 17.0`, `PRODUCT_BUNDLE_IDENTIFIER = com.appboong.jgnr-hw`. pbxproj에 `PBXFileSystemSynchronizedRootGroup` 존재
 - **비목표**: 화면·레이어 코드 없음. Info.plist 물리 파일 없음(`GENERATE_INFOPLIST_FILE = YES`)
 - **예산** (기본값: 프로필 §12): 신규 타입 1 · protocol 0 · 모듈 0 · 테스트 1 · 주석 없음 · 밀도 초과 없음
 - **세부 결정 포인트**: 생성 방식 — 기본값 안 A(사용자가 Xcode GUI). 체크리스트: File > New > Project > iOS App / Product Name `JGNR-HW` / Organization Identifier `com.appboong` / Interface SwiftUI / Language Swift / Testing System **Swift Testing** / Storage None / 저장 위치 레포 루트(체크박스 "Create Git repository" 해제) → 생성 후 타겟 Build Settings에서 Swift Language Version 6, Strict Concurrency Complete, **Default Actor Isolation = nonisolated**, Minimum Deployments iOS 17.0 → `ContentView.swift` 삭제, `JGNR_HWApp.swift`를 `App/JGNRHWApp.swift`로 이동·개명. 대안 안 B(에이전트가 pbxproj 작성 — ask 승인 필요)는 사용자가 요청할 때만
 - **확인 권장 포인트**: `xcodebuild -showBuildSettings | grep -E "SWIFT_VERSION|STRICT_CONCURRENCY|DEFAULT_ACTOR|DEPLOYMENT_TARGET|BUNDLE_IDENTIFIER"` 출력, `grep -c PBXFileSystemSynchronizedRootGroup JGNR-HW.xcodeproj/project.pbxproj`
-- **상태**: 진행 중 (2026-09-12 Step 2.0 컨펌 — 안 B)
+- **상태**: ✔️ COMMITTED `a4c3233` (2026-09-12 14:21). 셋업 산출물은 사용자 요청으로 별도 커밋 `d2e082b`
 
-### Commit 2 — Shared 인프라 ⬜
+### Commit 2 — Shared 인프라 🟡 IN PROGRESS
 - **파일**: `Shared/Network/{Endpoint,HTTPClient,URLSessionHTTPClient,NetworkError}.swift`, `Shared/LocalStorage/{KeyValueStore,UserDefaultsKeyValueStore}.swift`, `JGNR-HWTests/Doubles/{StubHTTPClient,StubKeyValueStore}.swift`
-- **완료조건**: 빌드 통과. `URLSessionHTTPClient`가 2xx 외 상태를 `httpStatus`, 디코딩 실패를 `decoding`, URL 조립 실패를 `invalidURL`로 던진다. `UserDefaultsKeyValueStore`는 `Data?`만 다룬다
+- **완료조건**: 빌드 통과. `URLSessionHTTPClient`가 2xx 외 상태를 `NetworkError(statusCode:)` 매핑(전용 case·clientError·serverError·unexpectedStatus)으로, 디코딩 실패를 `decoding`, URL 조립 실패를 `invalidURL`로 던진다. `UserDefaultsKeyValueStore`는 `Data?`만 다룬다
 - **비목표**: 실제 API 호출·재시도·캐시 헤더. 인증 없음
 - **예산**: 신규 타입 6 · protocol 2(HTTPClient·KeyValueStore — 더블 동반) · 테스트 0(Commit 4·6이 더블로 간접 검증) · 주석 없음
 - **세부 결정 포인트**: 없음 — 기본값: `URLComponents.dummyJSON` 정적 프로퍼티(scheme https, host dummyjson.com)
@@ -202,6 +204,7 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **완료조건**: 테스트 4개 통과 — ① 16번째 onAppear 반복 5회에 fetch 호출 1회, 15번째는 0회, `total` 도달 후 0회 ② 새로고침이 진행 중 페이지를 취소하고 skip 0 결과로 교체 ③ 찜 스트림 yield가 `favoriteIDs`에 반영 ④ 토글한 모드가 저장되고 새 ViewModel이 복원. 프리뷰로 1열/2열 정적 확인
 - **비목표**: Coordinator 통합(Commit 8), 상세 화면
 - **예산**: 신규 타입 8 · protocol 0~1(결정 A면 +1, 더블 동반) · 테스트 4 · 주석: 임계 인덱스 공식 근거 1줄 허용
+- **로컬 저장 키·인코딩 정리 (2026-09-12 사용자 결정)**: 두 번째 키(보기 모드)가 생기는 이 커밋에서 `Data/Local/LocalStorageKey.swift`에 `enum LocalStorageKey: String { case favoriteIDs, productListLayoutMode }`를 추출하고, `FavoriteLocalDataSource`(Commit 4)의 문자열 키를 이 enum으로 교체한다. Codable 인코딩/디코딩 헬퍼도 사용처가 둘이 되는 이 시점에 Data/Local의 `KeyValueStore` extension으로 추출한다. `Shared/LocalStorage`는 `Data?`만 다루는 상태를 유지 — 키·타입 구분은 Data/Local 소유. 예산: 타입 +1(enum), extension 1
 - **세부 결정 포인트**: **보기 모드 저장 경계** — 아키텍트 안(ViewModel이 `KeyValueStore` 직접 주입)은 아키텍처 검사 `Presentation → KeyValueStore` fail 규칙과 충돌. 선택지: **A(기본값·규칙 준수)** Domain `LayoutPreferenceRepository { load() -> ProductListLayoutMode?; save(_:) }` + `Data/Local/DefaultLayoutPreferenceRepository` + UseCase 2개(`LoadLayoutModeUseCase`·`SaveLayoutModeUseCase`) — protocol +1, 타입 +4 / **B(예외 허용)** ViewModel이 `KeyValueStore`를 직접 받고 `check-architecture.sh` 해당 규칙에서 `KeyValueStore` 제외 + 프로필 §3에 "UI 설정 예외" 명문화 — 타입 +0. 착수 게이트에서 확정
 - **확인 권장 포인트**: `loadNextPageIfNeeded`의 3중 가드 순서, `refresh()`의 취소·폐기 경로, 1열/2열 전환 시 `ScrollView` 유지
 - **상태**: 대기
@@ -249,6 +252,13 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 13:55 | AUDIT 생성 (setup-ios Step 5.5). 아키텍트 청사진 반영, 규칙 충돌 2건 조정(보기 모드 저장 경계 → Commit 6 결정 포인트, `URL(string:)!` → URLComponents). 다음 액션: 사용자 최종 컨펌 |
 | 2026-09-12 14:05 | 계획 확정 — 사용자 컨펌 완료. 셋업 산출물(.claude/*.md·AGENTS.md·CLAUDE.md·.gitignore)은 Commit 1(scaffold)에 함께 커밋. 하네스 실행물(.claude/hooks/·harness/·settings.json·protected.yml)은 gitignore(로컬 전용). Commit 1 착수 가능 |
 | 2026-09-12 14:02 | Commit 1 착수 게이트 통과 — 생성 방식 안 A → 안 B(에이전트 pbxproj 작성)로 변경, 스코프 잠금 없음. 운영 규칙: Fable은 오케스트레이션·확인만, 구현은 opus/sonnet/haiku 위임 |
+| 2026-09-12 14:15 | Commit 1 검증 통과 — ios-build(앱 스킴 빌드·arch 23/23·테스트 1건)·ios-review(LOW, Critical 0). buildable folder 실증: 새 폴더 2단계 파일 추가 후 pbxproj md5 불변, 테스트 2건 실행 |
+| 2026-09-12 14:21 | ✔️ COMMITTED — 사용자 요청으로 2건 분리: `d2e082b` chore(셋업 산출물) · `a4c3233` chore(scaffold). 다음 액션: Commit 2 착수 게이트(Step 2.0) |
+| 2026-09-12 14:40 | 커밋 메시지 컨벤션 확정(type 접두사 + 20자 이내 한글 제목, 본문 4줄 이내) — 커밋 2건 재작성 `d2e082b`·`a4c3233`. Commit 2 착수 게이트 통과(결정 포인트 없음), sonnet 구현 에이전트 스폰 |
+| 2026-09-12 15:05 | Commit 2 구현 완료(sonnet) → ios-build 통과 → ios-review HIGH(LocalStorage 고위험 영역), Critical 0. `@preconcurrency import Foundation`을 검사 우회로 판정 → 사용자 결정 안 A(suiteName만 보관) 채택, 수정 위임 |
+| 2026-09-12 15:05 | LEARN: 동시성 우회 금지 목록에 `@preconcurrency import`가 없어 구현 에이전트가 에러를 경고로 낮추는 데 사용 — 문자열로 판별 가능하므로 `check-architecture.sh` PATTERN_RULES 승격 후보 (Commit 2, 게이트 미검출 아님 — ios-review가 잡음) |
+| 2026-09-12 15:20 | Commit 2 게이트 수정 요청 — NetworkError HTTP 상태 세분화(전용 case 7 + clientError/serverError/unexpectedStatus). 취향·방향 변경이라 LEARN 아님. sonnet 수정 위임 |
+| 2026-09-12 15:35 | NetworkError 세분화 반영·빌드 통과. 사용자 결정: 로컬 저장 키·인코딩은 Data/Local 소유, Commit 6에서 `LocalStorageKey` enum + Codable 헬퍼 추출(§5 Commit 6에 기록). Commit 2 커밋 승인 |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 

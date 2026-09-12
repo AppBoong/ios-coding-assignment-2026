@@ -14,7 +14,7 @@
 
 - **워크스페이스/프로젝트 경로**: `JGNR-HW.xcodeproj` (레포 루트) — **초기 구축 Commit 1이 생성. 생성 전에는 빌드 대상 없음**
 - **빌드 도구**: XcodeBuildMCP (`build_sim` — project: `JGNR-HW.xcodeproj`, scheme: `JGNR-HW`). 폴백: `xcodebuild`
-- **검증된 빌드 명령**: 미정 — Commit 1(scaffold) 이후 `/setup-ios update`가 실제 성공한 명령을 기록. 예정 명령:
+- **검증된 빌드 명령** (2026-09-12 Commit 1에서 확인):
   `xcodebuild build -project JGNR-HW.xcodeproj -scheme JGNR-HW -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO`
 - **시뮬레이터 대상**: iPhone 17 Pro (iOS 26 런타임, 설치 확인됨). 대안: iPhone 15 Pro
 
@@ -26,7 +26,7 @@
 
 에이전트의 edit → build → test 루프는 **변경된 모듈 하나**를 초 단위로 돌려야 한다. 앱 스킴 전체 빌드는 커밋 게이트에서 1회만 한다.
 
-해당 없음 — 단일 xcodeproj로 모듈 스킴이 없다. **항상 앱 스킴 `JGNR-HW`** (증분 빌드라 두 번째부터는 수 초). 미정 항목은 Commit 1(scaffold) 이후 `/setup-ios update`로 채움.
+해당 없음 — 단일 xcodeproj로 모듈 스킴이 없다. **항상 앱 스킴 `JGNR-HW`** (증분 빌드라 두 번째부터는 수 초).
 
 | 모듈 디렉터리 | 최소 빌드 명령 |
 |---|---|
@@ -50,12 +50,11 @@
 ## 테스트 (해당 시)
 
 - **정책**: 핵심 도메인·뷰모델 필수 (Swift Testing, 수용 기준당 1개) / UI 테스트: 작성 안 함
-- **전체 실행 명령 (CI 티어)**: CI 없음. 로컬 전체: `xcodebuild test -project JGNR-HW.xcodeproj -scheme JGNR-HW -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` (미검증)
-- **검증된 영향 테스트 명령 (내부 루프 티어)**: 미정 — Commit 1(scaffold) 이후 `/setup-ios update`가 실행 수 N>0을 확인해 기록. 예정: XcodeBuildMCP `test_sim` 또는 `xcodebuild test … -only-testing:JGNR-HWTests`
+- **전체 실행 명령 (CI 티어)**: CI 없음. 로컬 전체: `xcodebuild test -project JGNR-HW.xcodeproj -scheme JGNR-HW -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO`
+- **검증된 영향 테스트 명령 (내부 루프 티어)** (2026-09-12 Commit 1에서 실행 수 1 확인):
+  `xcodebuild test -project JGNR-HW.xcodeproj -scheme JGNR-HW -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO -only-testing:JGNR-HWTests`
 
 ### 테스트 타겟 맵
-
-미정 — 초기 구축 Commit 1(scaffold) 이후 `/setup-ios update`로 채움. 예정:
 
 | 모듈 디렉터리 | 테스트 타겟 | 실행 형태 |
 |---|---|---|
