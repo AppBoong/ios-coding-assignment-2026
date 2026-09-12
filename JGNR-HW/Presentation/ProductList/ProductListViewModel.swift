@@ -40,7 +40,7 @@ final class ProductListViewModel {
         self.pageSize = pageSize
         self.prefetchThreshold = prefetchThreshold
         self.onSelectProduct = onSelectProduct
-        self.layoutMode = loadLayoutMode.execute() ?? .list
+        self.layoutMode = loadLayoutMode.execute()
     }
 
     func observeFavoriteChanges() async {
