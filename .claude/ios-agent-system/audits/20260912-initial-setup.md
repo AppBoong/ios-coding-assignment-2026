@@ -157,8 +157,8 @@ enum Route: Hashable { case productDetail(id: Int) }
 | 6d | `feat: 상품 목록 ViewModel 추가` | `Presentation/ProductList/ProductListViewModel` · `Tests/Presentation/ProductListViewModelTests` (2) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ✔️ COMMITTED `e666463` |
 | 6e | `feat: 상품 목록 화면 추가` | `Presentation/ProductList/ProductListView` · `Components/{ProductRowView,ProductGridItemView}` (3) + AUDIT | `[자동]` 빌드 · `[수동]` 1열/2열 프리뷰 | ✔️ COMMITTED `5b7dcab` |
 | 7a | `feat: 상품 상세 ViewModel 추가` | `Presentation/ProductDetail/ProductDetailViewModel` · `Tests/Presentation/ProductDetailViewModelTests` · `Tests/Support/WaitUntil`(헬퍼 추출) · 목록 테스트 수정 (4) | `[자동]` 테스트 2개(로드 성공/실패 문구·첫 yield+토글 방송) | ✔️ COMMITTED `d0cbcba` |
-| 7b | `feat: 상품 상세 화면 추가` | `Presentation/ProductDetail/ProductDetailView` + AUDIT (2) | `[자동]` 빌드 · `[수동]` `#Preview` · JYPhone 실기기 빌드 | ✔️ COMMITTED (이 커밋 — 해시는 Commit 8 갱신 시 기입) |
-| 8 | `feat(app): wire dependencies and coordinator navigation` | `App/AppDependencies·AppCoordinator·Route·JGNRHWApp(교체)` | `[자동]` verify.md 시나리오 1~7 시뮬레이터 · `[수동]` 8(오프라인) | ⬜ |
+| 7b | `feat: 상품 상세 화면 추가` | `Presentation/ProductDetail/ProductDetailView` + AUDIT (2) | `[자동]` 빌드 · `[수동]` `#Preview` · JYPhone 실기기 빌드 | ✔️ COMMITTED `a9c0d74` |
+| 8 | `feat(app): wire dependencies and coordinator navigation` | `App/AppDependencies·AppCoordinator·Route·JGNRHWApp(교체)` | `[자동]` verify.md 시나리오 1~7 시뮬레이터 · `[수동]` 8(오프라인) | ✔️ COMMITTED (이 커밋) |
 
 > 각 검증 포인트에 **`[자동]`/`[수동]` 마커**를 붙인다 — `[자동]`은 시뮬레이터 조작으로 확인 가능한 항목(`/verify-ios`가 실행), `[수동]`은 사람만 판단 가능한 항목.
 > Commit 1 직후 `/setup-ios update`를 실행해 `build.md`의 검증된 빌드·테스트 명령을 채운다.
@@ -239,14 +239,14 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **확인 권장 포인트**: 상세 ViewModel의 구독 Task가 뷰 `.task` 취소로 종료되는지
 - **상태**: 7a ✔️ · 7b ✔️ — Commit 7 완료
 
-### Commit 8 — App 조립·네비게이션 ⬜
+### Commit 8 — App 조립·네비게이션 ✔️
 - **파일**: `App/{AppDependencies,AppCoordinator,Route}.swift`, `App/JGNRHWApp.swift`(교체)
 - **완료조건**: 시뮬레이터에서 verify.md 시나리오 1~7 통과(`/verify-ios`). `check-architecture.sh` 전체 통과
 - **비목표**: README·PR 본문(사용자 작성 — pr-drafts 초안은 회고 뒤 제안), 딥링크
 - **예산**: 신규 타입 3 · protocol 0 · 테스트 0 · 주석 없음
-- **세부 결정 포인트**: 없음 — 기본값(`NavigationStack(path: $coordinator.path)`, 네비게이션 클로저 `[weak coordinator]`)
+- **세부 결정 포인트**: 기본값(`NavigationStack(path: $coordinator.path)`, 네비게이션 클로저 `[weak coordinator]`) + **VM 소유권(2026-09-12 착수 게이트)**: 목록 VM은 Coordinator init에서 1개 보유(body 재평가마다 생성하면 pop 시 목록 초기화). 상세 VM은 `destination(for:)` 호출마다 생성 — 사용자 선택. `navigationDestination`은 App body의 NavigationStack 루트에 붙이고 그 body는 `path`만 읽는다(다른 관찰 상태를 읽으면 상세 표시 중 body 재평가 → 빌더 재호출 → VM 교체로 화면이 빔). 2단계 push가 생기면 Route별 캐시로 전환. 더블탭 중복 push 가드(`path.last != route`)는 비목표
 - **확인 권장 포인트**: `AppDependencies.init`이 유일한 조립 지점인지, `ImageLoader` environment 주입 위치
-- **상태**: 대기
+- **상태**: ✔️ COMMITTED. 표면: 타입 3(예산 3) · protocol 0 · 테스트 0 · 주석 2줄(근거). 위험도 HIGH(영역 지정). 시뮬레이터 시나리오 1~7 PASS(3은 오케스트레이터 axe 재검증). 게이트에서 사용자 제안(UIKit식 자식 코디네이터 트리·Presentation 배치·ServiceResolver)을 분석해 단일 AppCoordinator 유지로 결정 — SwiftUI path 단일 진실과 충돌, 인터랙티브 pop 정리 문제, 서비스 로케이터는 PRD §3 이탈, 2화면 규모 과잉. PR 본문 재료
 
 ---
 
@@ -300,6 +300,10 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 17:51 | 7a 검증 — ios-build(경고 0·arch 23/23·14/14 ×2)·ios-review(LOW, Critical 0, 판단 3건). 사용자 요청으로 3건 상세 분석 → 2건 반영(죽은 대기 교체·waitUntil 추출), 1건 유지(load 공개). 재검증 14/14 ×2. ✔️ 7a `d0cbcba`. 다음: 7b 화면 |
 | 2026-09-12 18:13 | 7b 검증 — ios-build(경고 0·arch 23/23·회귀 14/14)·ios-review(MEDIUM 신규 화면, Critical 0, 판단 5건). 사용자 요청으로 5건 상세 분석(DummyJSON 194개 실데이터 대조: 중복 URL 0·이미지 누락 0) → 4건 반영(고정 타이틀·인덱스 식별+근거 주석·fileprivate 상수·else 삭제), 1건 유지. 재검증 통과. JYPhone 실기기 서명 빌드(Team 커맨드라인 override, pbxproj 불변)·설치·실행 — 이후 사용자가 실기기에서 직접 확인. 다음: 7b 커밋 승인 → Commit 8 |
 | 2026-09-12 18:16 | ✔️ 7b COMMITTED (View+AUDIT). Commit 7 완료(2분할). 사용자: 세션 클리어 예정. **다음 액션: Commit 8(App 조립·네비게이션) 착수 게이트(Step 2.0)** — 완료 후 JYPhone 재설치(서명: `-allowProvisioningUpdates DEVELOPMENT_TEAM=MU569YV3Y3`, 기기 id `00008150-001A03863C84401C`, devicectl `02D934DE-…`)로 목록·상세·찜 직접 확인 |
+| 2026-09-12 18:26 | Resume — 마커·git log 대사 일치(7b=`a9c0d74`). 스코프 잠금 없음. Commit 8 착수 게이트 통과 — 결정 1건: 상세 VM은 destination마다 생성(사용자 선택), 목록 VM은 Coordinator 보유, navigationDestination은 App body 루트. sonnet 구현 위임 |
+| 2026-09-12 18:54 | Commit 8 검증 — ios-build(BUILD SUCCEEDED·경고 0·arch 23/23·회귀 14/14, 자동 수정 0, 표면 타입 3/protocol 0/테스트 0 = 예산 일치)·ios-review(HIGH: 고위험 영역 지정, Critical 0, 수정 0, 면접관 질문 1: 상세 VM 비캐시 트레이드오프)·ios-verify 시나리오 1~7: 5 PASS·2 UNVERIFIED(3·자동화 한계) → 오케스트레이터가 axe(정확 터치)로 3 재검증 PASS(스피너·찜 유지·9→3페이지 리셋). 에이전트가 보고한 "뒤로 시 목록 최상단 리셋"은 axe 재현 결과 미발생(스크롤 위치·11페이지 유지) — cliclick 조작 부작용. JYPhone 서명 빌드·설치·실행 완료(pbxproj 불변). 다음: 커밋 승인 대기 |
+| 2026-09-12 19:04 | Commit 8 게이트 — 사용자 요청으로 리뷰 항목 4건 상세 분석(상세 VM 비캐시 유지·테스트 우선순위 3건 검증 완료·HIGH는 영역 지정·더블탭 가드) → 1건 반영: `AppCoordinator.push`에 `guard path.last != route` 가드(haiku 편집). 재검증 빌드·arch 23/23·14/14. JYPhone 재설치. 취향·방향 결정이라 LEARN 아님. 다음: 커밋 승인 대기 |
+| 2026-09-12 19:23 | Commit 8 게이트 — 사용자 제안(화면별 코디네이터 + Coordinator protocol, UIKit 예시) 분석 → 사용자 결정: 현재 구조 유지. ✔️ Commit 8 COMMITTED (App 4파일 + AUDIT). **모든 커밋 완료** — 다음: Step 5 회고 게이트(LEARN 3건) → intent done → draft PR 제안 |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
