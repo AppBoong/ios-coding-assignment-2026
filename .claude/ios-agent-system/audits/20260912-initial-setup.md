@@ -144,8 +144,9 @@ enum Route: Hashable { case productDetail(id: Int) }
 | 2 | `feat(shared): add HTTPClient and KeyValueStore infrastructure` | `Shared/Network/*`, `Shared/LocalStorage/*`, `Tests/Doubles/StubHTTPClient·StubKeyValueStore` | `[자동]` 빌드 통과 | ✔️ COMMITTED `999a0bf` |
 | 3a | `feat: 도메인 엔티티 추가` | `Domain/Entities/*` (4) | `[자동]` 단독 빌드 | ✔️ COMMITTED `f0d9dc1` |
 | 3b | `feat: 리포지토리 계약·유스케이스 추가` | `Domain/Repositories/*` (2) + `Domain/UseCases/*` (4) | `[자동]` 단독 빌드 | ✔️ COMMITTED `8a308cc` |
-| 3c | `test: 도메인 테스트 더블 추가` | `Tests/Doubles/StubProductRepository·StubFavoriteRepository` + AUDIT | `[자동]` 빌드 + 아키텍처 검사 23/23 + 테스트 1건 | ✔️ COMMITTED (이 커밋 — 해시는 Commit 4 갱신 시 기입) |
-| 4 | `feat(data): implement remote product and local favorite repositories` | `Data/**`, `Tests/Data/ProductDTOMappingTests·DefaultFavoriteRepositoryTests` — **착수 게이트에서 5~6파일 단위로 분할(예: 4a Remote DTO·Endpoint·DefaultProductRepository+매핑 테스트 / 4b Local·DefaultFavoriteRepository+테스트)** | `[자동]` 테스트 3개 통과(매핑·토글/영속·방송) | ⬜ |
+| 3c | `test: 도메인 테스트 더블 추가` | `Tests/Doubles/StubProductRepository·StubFavoriteRepository` + AUDIT | `[자동]` 빌드 + 아키텍처 검사 23/23 + 테스트 1건 | ✔️ COMMITTED `90b0552` |
+| 4a | `feat: 원격 상품 리포지토리 추가` | `Data/Remote/ProductEndpoint` · `Data/Remote/DTO/*` (3) · `Data/Repositories/DefaultProductRepository` · `Tests/Data/ProductDTOMappingTests` | `[자동]` 단독 빌드 + 매핑·쿼리 테스트 3건 | ✔️ COMMITTED `ed5e95e` |
+| 4b | `feat: 로컬 찜 리포지토리 추가` | `Data/Local/FavoriteLocalDataSource` · `Data/Repositories/DefaultFavoriteRepository` · `Tests/Data/DefaultFavoriteRepositoryTests` + AUDIT | `[자동]` 테스트 2건(영속 복원·구독자 2개 방송) | ✔️ COMMITTED (이 커밋 — 해시는 Commit 5 갱신 시 기입) |
 | 5 | `feat(shared): add actor-based image loader and RemoteImage view` | `Shared/Image/*` | `[자동]` 빌드 · `[수동]` `#Preview` 정적 확인 | ⬜ |
 | 6 | `feat(list): add product list screen with pagination, refresh, layout toggle` | `Presentation/ProductList/**`, `Presentation/Common/*`, `Tests/Presentation/ProductListViewModelTests` (+ 보기 모드 저장 경계 파일 — 결정에 따라 Domain/Data) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ⬜ |
 | 7 | `feat(detail): add product detail screen with favorite sync` | `Presentation/ProductDetail/**`, `Tests/Presentation/ProductDetailViewModelTests` | `[자동]` 테스트 2개(로드·찜 토글 반영) | ⬜ |
@@ -176,7 +177,7 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **확인 권장 포인트**: `URLSessionHTTPClient.request` 에러 분기, `Endpoint` → URL 조립에 강제 언래핑 없음
 - **상태**: 대기
 
-### Commit 3 — Domain ✔️ COMMITTED (3a `f0d9dc1` · 3b `8a308cc` · 3c)
+### Commit 3 — Domain ✔️ COMMITTED (3a `f0d9dc1` · 3b `8a308cc` · 3c `90b0552`)
 - **파일**: `Domain/Entities/{ProductSummary,ProductPage,Product,ProductListLayoutMode}.swift`, `Domain/Repositories/{ProductRepository,FavoriteRepository}.swift`, `Domain/UseCases/{FetchProductPage,FetchProductDetail,ToggleFavorite,ObserveFavorites}UseCase.swift`, `JGNR-HWTests/Doubles/{StubProductRepository,StubFavoriteRepository}.swift`
 - **완료조건**: 빌드 통과, `check-architecture.sh` Domain 규칙 통과(Foundation만)
 - **비목표**: UseCase protocol 없음. 보기 모드 Repository는 Commit 6 결정 후
@@ -186,14 +187,16 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **리뷰 잔여(다음 커밋 확인)**: ① `ProductListLayoutMode`를 Domain에 둔 근거를 Commit 6 저장 경계 결정 시 커밋 메시지에 한 줄 ② 더블의 다중 구독 구조를 `DefaultFavoriteRepository`(Commit 4)도 동일하게 갈지 착수 게이트에서 확인 ③ `StubProductRepository` 큐 소비 규칙(마지막 결과 재사용)이 Commit 6 첫 테스트 의도와 맞는지 재확인
 - **상태**: ✔️ COMMITTED — 3a `f0d9dc1`(Entity 4) · 3b `8a308cc`(protocol 2 + UseCase 4) · 3c(더블 2 + AUDIT). 표면: 타입 12(예산 10, 초과 2 = 더블 중첩 `Failure`·`PageCall`) · protocol 2 · 테스트 0 · 주석 0
 
-### Commit 4 — Data ⬜
+### Commit 4 — Data ✔️ COMMITTED (4a `ed5e95e` · 4b)
 - **파일**: `Data/Remote/ProductEndpoint.swift`, `Data/Remote/DTO/{ProductSummaryDTO,ProductPageDTO,ProductDetailDTO}.swift`(각각 `toEntity()`), `Data/Local/FavoriteLocalDataSource.swift`, `Data/Repositories/{DefaultProductRepository,DefaultFavoriteRepository}.swift`, `JGNR-HWTests/Data/{ProductDTOMappingTests,DefaultFavoriteRepositoryTests}.swift`
 - **완료조건**: 테스트 통과 — ① DTO JSON(brand 누락 포함) → Entity 매핑 ② 토글 후 `StubKeyValueStore`에 저장되고 새 인스턴스가 복원 ③ `observe()` 구독자 2개가 토글 1회에 같은 Set을 받음
 - **비목표**: 네트워크 실제 연결(verify-ios), 디스크 캐시
 - **예산**: 신규 타입 7 · protocol 0 · 테스트 3 · 주석: 찜 ID 인코딩 형식(JSON `[Int]`) 근거 1줄 허용
-- **세부 결정 포인트**: 없음 — 기본값: UserDefaults 키 `favorite.productIDs`, 값은 JSON 인코딩 `[Int]`(정렬)
+- **분할 (2026-09-12 착수 게이트)**: **4a** `feat: 원격 상품 리포지토리 추가` — `Data/Remote/ProductEndpoint` · `Data/Remote/DTO/{ProductSummaryDTO,ProductPageDTO,ProductDetailDTO}` · `Data/Repositories/DefaultProductRepository` · `Tests/Data/ProductDTOMappingTests` (6) / **4b** `feat: 로컬 찜 리포지토리 추가` — `Data/Local/FavoriteLocalDataSource` · `Data/Repositories/DefaultFavoriteRepository` · `Tests/Data/DefaultFavoriteRepositoryTests` (3)
+- **세부 결정 포인트**: 결정 포인트 없음 — 기본값 확정: UserDefaults 키 `favorite.productIDs`, 값 JSON `[Int]` 정렬 · `ProductEndpoint`는 enum + `static func page(skip:limit:)`/`detail(id:)` · `discountPercentage → discountRate` · 잘못된 URL은 썸네일 nil / `images`는 compactMap 제외 · `DefaultFavoriteRepository`는 다중 구독(목록·상세 동시) + `onTermination` 해제 + 첫 yield 현재 스냅샷. DummyJSON 실측: `brand` 194개 중 92개 누락
 - **확인 권장 포인트**: `DefaultFavoriteRepository`의 continuation 보관·해제(`onTermination`에서 제거 — 누수 방지)
-- **상태**: 대기
+- **리뷰 반영 (사용자 지시 "리뷰 지적 모두 수정")**: ① `save` 인코딩 실패 시 `set(nil)` 삭제 → `guard … return`(쓰기 무시) ② `observe()` `bufferingPolicy: .bufferingNewest(1)` 명시 ③ 매핑 테스트 1 → 3 분리(페이지/상세+brand 누락/select 쿼리). 미반영: `load()` 디코딩 실패 → 빈 Set 폴백(리뷰어 "지금 고칠 필요 없음", KeyValueStore가 throw하지 않아 대안 없음 — Commit 6 `LocalStorageKey` 추출 때 재확인)
+- **상태**: ✔️ COMMITTED. 표면: 타입 9(예산 7 + 테스트 스위트 2) · protocol 0 · 테스트 5(예산 3 — 사용자 지시로 분리) · 주석 1줄(허용). 위험도 HIGH(고위험 영역 접촉) — 심층 리뷰는 Commit 8 후 `/review-ios` 권장
 
 ### Commit 5 — Shared/Image ⬜
 - **파일**: `Shared/Image/{ImageLoader,RemoteImage,ImageLoaderEnvironmentKey}.swift`
@@ -267,6 +270,8 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 14:47 | ✔️ COMMITTED `999a0bf` feat: 네트워크·로컬 저장 인프라 추가. 다음 액션: Commit 3 착수 게이트 |
 | 2026-09-12 14:53 | Resume — AUDIT 마커·git log 대사 일치(1·2 COMMITTED). 스코프 잠금 없음. Commit 3 착수 게이트 통과 — 결정 1건: `FavoriteRepository` 2개 요구사항으로 축소(`currentFavoriteIDs` 폐기, observe 첫 yield = 현재 스냅샷). sonnet 구현 에이전트 스폰 |
 | 2026-09-12 15:08 | Commit 3 검증 통과 — ios-build(앱 스킴 빌드·arch 23/23·테스트 1건, 자동 수정 0)·ios-review(LOW, Critical 0, High 1: 더블 큐 소비 규칙 비자명 — 보고만). 커밋 게이트에서 사용자 반려: 13파일은 과다 → 3분할 + 이후 커밋당 5~6파일 이하 규칙(§2 기록). 3a `f0d9dc1`·3b `8a308cc` 단독 빌드 확인 후 커밋, 3c(더블+AUDIT) 커밋. 다음 액션: Commit 4 착수 게이트(분할안 제시) |
+| 2026-09-12 15:10 | Commit 4 착수 게이트 통과 — 4a(원격 6파일)/4b(로컬 3파일) 분할, 결정 포인트 없음(기본값 §5 기록). DummyJSON 실측으로 DTO 필드 확정. sonnet 구현 에이전트 스폰 |
+| 2026-09-12 15:26 | Commit 4 검증 통과 — ios-build(빌드·arch 23/23·테스트 4건 2회 연속, flaky 없음)·ios-review(HIGH: 고위험 영역 접촉, Critical 0, High 1·Medium 1). 사용자 지시로 리뷰 지적 3건 반영(sonnet) → 재검증 테스트 6/6. 4a `ed5e95e` 단독 빌드 확인 후 커밋, 4b(로컬+AUDIT) 커밋. 다음 액션: Commit 5(Shared/Image) 착수 게이트 |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
