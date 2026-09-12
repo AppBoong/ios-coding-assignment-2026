@@ -4,6 +4,7 @@ struct ProductListView: View {
     private static let gridColumnCount = 2
     private static let gridSpacing: CGFloat = 12
     private static let contentPadding: CGFloat = 16
+    private static let contentTopID = "product-list-content-top"
 
     let viewModel: ProductListViewModel
 
@@ -33,35 +34,47 @@ struct ProductListView: View {
                 Task { await viewModel.loadFirstPage() }
             }
         } else {
-            ScrollView {
-                VStack(spacing: Self.gridSpacing) {
-                    if let message = viewModel.firstPageError, !viewModel.items.isEmpty {
-                        ErrorRetryView(message: message) {
-                            Task { await viewModel.refresh() }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: Self.gridSpacing) {
+                        if let message = viewModel.firstPageError, !viewModel.items.isEmpty {
+                            ErrorRetryView(message: message) {
+                                Task { await viewModel.refresh() }
+                            }
                         }
+                        switch viewModel.layoutMode {
+                        case .list:
+                            LazyVStack(spacing: Self.gridSpacing) {
+                                cells
+                            }
+                        case .grid:
+                            LazyVGrid(
+                                columns: Array(
+                                    repeating: GridItem(.flexible(), spacing: Self.gridSpacing),
+                                    count: Self.gridColumnCount
+                                ),
+                                spacing: Self.gridSpacing
+                            ) {
+                                cells
+                            }
+                        }
+                        footer
                     }
-                    switch viewModel.layoutMode {
-                    case .list:
-                        LazyVStack(spacing: Self.gridSpacing) {
-                            cells
-                        }
-                    case .grid:
-                        LazyVGrid(
-                            columns: Array(
-                                repeating: GridItem(.flexible(), spacing: Self.gridSpacing),
-                                count: Self.gridColumnCount
-                            ),
-                            spacing: Self.gridSpacing
-                        ) {
-                            cells
-                        }
-                    }
-                    footer
+                    .padding(Self.contentPadding)
+                    .id(Self.contentTopID)
                 }
-                .padding(Self.contentPadding)
+                .background(Color(.systemBackground))
+                .refreshable {
+                    await viewModel.refresh()
+                    // 인디케이터 접힘 애니메이션이 끝난 뒤 한 프레임 재계산 유도
+                    try? await Task.sleep(for: .milliseconds(500))
+                    await MainActor.run {
+                        withAnimation(.none) {
+                            proxy.scrollTo(Self.contentTopID, anchor: .top)
+                        }
+                    }
+                }
             }
-            .background(Color(.systemBackground))
-            .refreshable { await viewModel.refresh() }
         }
     }
 
