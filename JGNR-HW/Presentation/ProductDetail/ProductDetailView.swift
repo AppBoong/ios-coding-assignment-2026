@@ -67,26 +67,61 @@ private struct ProductDetailContent: View {
 }
 
 private struct ImageGallery: View {
+    @Environment(\.imageProvider) private var imageProvider
     let imageURLs: [URL]
     let thumbnailURL: URL?
+    // 페이지 TabView는 화면 밖 페이지 뷰를 파괴하므로, 페이지가 아니라 갤러리가 이미지를 소유한다 —
+    // 캐시가 축출돼도 상세가 열려 있는 동안은 재방문 페이지가 placeholder를 거치지 않는다
+    @State private var images: [URL: Image] = [:]
+
+    private var urls: [URL] {
+        imageURLs.isEmpty ? [thumbnailURL].compactMap { $0 } : imageURLs
+    }
 
     var body: some View {
-        let urls = imageURLs.isEmpty ? [thumbnailURL].compactMap { $0 } : imageURLs
         TabView {
             // 페이지 식별은 위치로 한다 — imageURLs는 상세 수명 동안 수정·삭제가 없어 인덱스가 안정적이고,
             // URL 유일성은 서버가 보장하지 않는다. 편집·삭제 기능이 생기면 서버 id를 받거나 id를 부여한 페이지 모델로 전환한다
             ForEach(Array(urls.enumerated()), id: \.offset) { _, url in
-                RemoteImage(url: url) { image in
-                    image.resizable()
-                } placeholder: {
-                    Color(.secondarySystemBackground)
+                ZStack {
+                    Color(.secondarySystemBackground)   // 항상 깔아 로드 전후 페이지 크기를 고정
+                    if let image = image(for: url) {
+                        image.resizable().scaledToFit()
+                    }
                 }
-                .aspectRatio(contentMode: .fit)
             }
         }
         .tabViewStyle(.page)
         .indexViewStyle(.page(backgroundDisplayMode: .always))
         .aspectRatio(1, contentMode: .fit)
+        .task(id: urls) { await loadImages() }
+    }
+
+    private func image(for url: URL) -> Image? {
+        if let image = images[url] { return image }
+        guard let cached = imageProvider?.cachedImage(for: url) else { return nil }
+        return Image(uiImage: cached)
+    }
+
+    // 상세 이미지는 상품당 최대 6장이라, 첫 스와이프가 로딩을 만나지 않도록 전부 선로드한다
+    private func loadImages() async {
+        guard !urls.isEmpty else { return }   // 이미지가 없는 상품은 정상 상태이므로 주입 누락과 구분한다
+        guard let imageProvider else {
+            assertionFailure("ImageProvider가 주입되지 않았다 — AppDependencies의 인스턴스를 .environment로 넘겨야 한다")
+            return
+        }
+        await withTaskGroup(of: (URL, Image?).self) { group in
+            for url in urls where image(for: url) == nil {
+                group.addTask {
+                    guard let loaded = try? await imageProvider.image(for: url) else { return (url, nil) }
+                    return (url, Image(uiImage: loaded))
+                }
+            }
+            // URL이 키라 늦게 온 결과가 다른 이미지를 덮을 수 없어, 단일 상태를 쓰는 RemoteImage와 달리 취소 가드가 필요 없다
+            for await (url, image) in group {
+                if let image { images[url] = image }
+            }
+        }
     }
 }
 
