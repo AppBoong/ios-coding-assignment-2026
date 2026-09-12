@@ -64,6 +64,7 @@
 | UserDefaults 보관 방식 | `UserDefaultsKeyValueStore`는 `suiteName: String?`만 보관, 호출마다 `UserDefaults(suiteName:) ?? .standard` 접근 | Swift 6 strict에서 Sendable struct가 non-Sendable `UserDefaults`를 저장 프로퍼티로 못 가짐. `@preconcurrency import`로 낮추면 경고가 남고 검사 우회 범주 — 2026-09-12 Commit 2 결정 |
 | `FavoriteRepository` 시그니처 | `toggle(id:) async` + `observe() async -> AsyncStream<Set<Int>>` 2개 — `observe()`는 구독 즉시 현재 Set을 먼저 yield하고 이후 변경마다 방송. `currentFavoriteIDs()` 폐기 | UseCase 호출처가 0인 메서드를 protocol에 두지 않는다(리뷰 Critical 기준). ViewModel은 첫 yield로 초기값을 받는다 — 2026-09-12 Commit 3 착수 게이트 결정 |
 | 커밋 크기 | **커밋당 파일 5~6개 이하** — 의존 순서(하위→상위)로 나눠 각 커밋이 단독 빌드되게 하고 커밋마다 빌드 확인. Commit 4~8은 착수 게이트에서 미리 분할 제시 | 사용자 결정 2026-09-12 Commit 3 게이트 — 13파일 커밋 반려("파일이 너무 많음, 분할하여 커밋 진행") |
+| 보기 모드 저장 경계 | **안 A + `LocalStorageKey` enum** — Domain `LayoutPreferenceRepository { load() -> ProductListLayoutMode?; save(_:) }`(동기) + `Data/Repositories/DefaultLayoutPreferenceRepository` + `Load/SaveLayoutModeUseCase` + 더블. 모든 로컬 저장은 `Domain protocol → Data/Local → LocalStorageKey`(raw: `favorite.productIDs` 보존 · `productList.layoutMode`) 한 경로. `KeyValueStore` Codable 헬퍼는 Data/Local extension | 사용자 의도 "로컬 저장 항목을 enum으로 규격화" — 키 목록뿐 아니라 저장 경로도 한 레이어로 통일. 실무 관행(UI 선호는 Presentation)보다 규칙 일관성 선택 — 2026-09-12 Commit 6 착수 게이트 |
 | Commit 1 생성 방식 | **안 B — 에이전트(opus)가 pbxproj·스킴 직접 작성** (2026-09-12 Step 2.0에서 안 A → 안 B로 변경) | 사용자 지시: Fable은 총괄만, 작업은 서브에이전트 위임. `*.pbxproj` 쓰기는 게이트 ask 승인 1회. 생성 후 showBuildSettings·build·test로 검증 |
 
 ---
@@ -149,9 +150,12 @@ enum Route: Hashable { case productDetail(id: Int) }
 | 4b | `feat: 로컬 찜 리포지토리 추가` | `Data/Local/FavoriteLocalDataSource` · `Data/Repositories/DefaultFavoriteRepository` · `Tests/Data/DefaultFavoriteRepositoryTests` + AUDIT | `[자동]` 테스트 2건(영속 복원·구독자 2개 방송) | ✔️ COMMITTED `4024456` |
 | 5a | `feat: 이미지 로더 추가` | `Shared/Image/{ImageLoader,ImageLoaderError}` | `[자동]` 단독 빌드 | ✔️ COMMITTED `ff6c594` |
 | 5b | `feat: RemoteImage 뷰 추가` | `Shared/Image/{RemoteImage,ImageLoaderEnvironmentKey}` | `[자동]` 단독 빌드 · `[수동]` Commit 8 후 verify | ✔️ COMMITTED `4cd1f4e` |
-| 5c | `test: 이미지 로더 캐시 테스트 추가` | `Tests/Doubles/StubImageURLProtocol` · `Tests/Shared/ImageLoaderTests` + AUDIT | `[자동]` 테스트 2건(병합 1회·디스크 1회 저장) | ✔️ COMMITTED (이 커밋 — 해시는 5d 갱신 시 기입) |
-| 5d | `feat: 이미지 디스크 캐시 정리` | `Shared/Image/ImageLoader`(스윕 메서드) + 테스트 1 | `[자동]` 스윕 테스트 | ⬜ |
-| 6 | `feat(list): add product list screen with pagination, refresh, layout toggle` | `Presentation/ProductList/**`, `Presentation/Common/*`, `Tests/Presentation/ProductListViewModelTests` (+ 보기 모드 저장 경계 파일 — 결정에 따라 Domain/Data) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ⬜ |
+| 5c | `test: 이미지 로더 캐시 테스트 추가` | `Tests/Doubles/StubImageURLProtocol` · `Tests/Shared/ImageLoaderTests` + AUDIT | `[자동]` 테스트 2건(병합 1회·디스크 1회 저장) | ✔️ COMMITTED `9fdc7ff` |
+| 6a | `refactor: 로컬 저장 키·Codable 헬퍼 추출` | `Data/Local/{LocalStorageKey,KeyValueStore+Codable}` · `FavoriteLocalDataSource` 수정 (3) | `[자동]` 기존 테스트 8/8(키 불변) | ✔️ COMMITTED `d03a9cc` |
+| 6b | `feat: 보기 모드 저장 리포지토리 추가` | `Domain/Repositories/LayoutPreferenceRepository` · `Domain/UseCases/{LoadLayoutMode,SaveLayoutMode}UseCase` · `Data/Repositories/DefaultLayoutPreferenceRepository` · `Tests/Doubles/StubLayoutPreferenceRepository` (5) | `[자동]` 단독 빌드 + 아키텍처 | ✔️ COMMITTED (이 커밋 — 해시는 6c 갱신 시 기입) |
+| 6c | `feat: 목록 공용 컴포넌트 추가` | `Presentation/Common/{FavoriteButton,ErrorRetryView,PriceFormatter}` (3) | `[자동]` 빌드 · `[수동]` `#Preview` | ⬜ |
+| 6d | `feat: 상품 목록 ViewModel 추가` | `Presentation/ProductList/ProductListViewModel` · `Tests/Presentation/ProductListViewModelTests` (2) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ⬜ |
+| 6e | `feat: 상품 목록 화면 추가` | `Presentation/ProductList/ProductListView` · `Components/{ProductRowView,ProductGridItemView}` (3) | `[자동]` 빌드 · `[수동]` 1열/2열 프리뷰 | ⬜ |
 | 7 | `feat(detail): add product detail screen with favorite sync` | `Presentation/ProductDetail/**`, `Tests/Presentation/ProductDetailViewModelTests` | `[자동]` 테스트 2개(로드·찜 토글 반영) | ⬜ |
 | 8 | `feat(app): wire dependencies and coordinator navigation` | `App/AppDependencies·AppCoordinator·Route·JGNRHWApp(교체)` | `[자동]` verify.md 시나리오 1~7 시뮬레이터 · `[수동]` 8(오프라인) | ⬜ |
 
@@ -201,24 +205,23 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **리뷰 반영 (사용자 지시 "리뷰 지적 모두 수정")**: ① `save` 인코딩 실패 시 `set(nil)` 삭제 → `guard … return`(쓰기 무시) ② `observe()` `bufferingPolicy: .bufferingNewest(1)` 명시 ③ 매핑 테스트 1 → 3 분리(페이지/상세+brand 누락/select 쿼리). 미반영: `load()` 디코딩 실패 → 빈 Set 폴백(리뷰어 "지금 고칠 필요 없음", KeyValueStore가 throw하지 않아 대안 없음 — Commit 6 `LocalStorageKey` 추출 때 재확인)
 - **상태**: ✔️ COMMITTED. 표면: 타입 9(예산 7 + 테스트 스위트 2) · protocol 0 · 테스트 5(예산 3 — 사용자 지시로 분리) · 주석 1줄(허용). 위험도 HIGH(고위험 영역 접촉) — 심층 리뷰는 Commit 8 후 `/review-ios` 권장
 
-### Commit 5 — Shared/Image ✔️ COMMITTED (5a `ff6c594` · 5b `4cd1f4e` · 5c) / 5d ⬜
+### Commit 5 — Shared/Image ✔️ COMMITTED (5a `ff6c594` · 5b `4cd1f4e` · 5c `9fdc7ff`)
 - **파일**: `Shared/Image/{ImageLoader,ImageLoaderError,RemoteImage,ImageLoaderEnvironmentKey}.swift`
 - **완료조건**: 빌드 통과. `ImageLoader`가 **메모리(NSCache 상한) → 디스크(Caches/ImageCache, SHA256 파일명) → 네트워크** 순으로 조회, 같은 URL 동시 요청을 in-flight `Task` 딕셔너리로 병합, 디코딩(`UIImage(data:)`)을 actor 안에서 수행. `RemoteImage`는 `.task(id: url)`로 로드하고 사라지면 취소
-- **비목표**: 다운샘플링, 프로그레시브 로딩, 디스크 캐시 만료·용량 정리
+- **비목표**: 다운샘플링, 프로그레시브 로딩, 디스크 캐시 만료·용량 정리(2026-09-12 사용자 결정: 과제 규모에 과함 — 구현 후 취소, PR 본문 개선점 후보. Caches 디렉토리라 OS가 저장 공간 압박 시 비움)
 - **예산**: 신규 타입 4(에러 enum +1) · protocol 0 · 테스트 0(밀도 간결 — verify/trace로 확인) · 주석: in-flight 병합 의도 1줄 + 파일명 해시 근거 1줄 허용
 - **세부 결정 포인트 (2026-09-12 착수 게이트 · 사용자 참고 코드 제공)**: 사용자가 메모리→디스크→네트워크 3단 로더 코드를 참고로 제시 → **디스크 캐시를 범위에 포함**(비목표에서 제거). 규칙 충돌 조정: `static let shared` 제거(Locked: AppDependencies 생성 + Environment 주입) · `///` 제거(밀도 간결) · `DataFetcher` protocol 제거(사용처 1곳 → `URLSession` 직접 주입) · `cachedImage(for:)` 제외(호출처 0) · `urls(for:)[0]` → `URL.cachesDirectory` · NSCache 상한 200개/50MB 유지 · `image(for:) async throws -> UIImage` + `ImageLoaderError { invalidResponse, decodingFailed }`
 - **커밋 게이트 수정 (2026-09-12 사용자 지시 "리뷰어가 찾은 부분 전부 확인 + 캐시 테스트 + 디스크 정리 방안 + nonisolated 트레이드오프")**: ① `fetch`·`fileURL`을 `nonisolated`로 — 디스크 IO·디코딩을 actor 밖 협력 풀에서, actor 임계구역은 `inFlight`·NSCache만(트레이드오프: 홉 2회·동시 디코딩 메모리 — 썸네일 규모 무시 가능) ② `EnvironmentKey.defaultValue` 계산 프로퍼티 → `static let`(접근마다 새 로더 함정 제거) ③ `init(directoryName:)` 주입(테스트 격리) ④ `JGNR-HWTests/Shared/ImageLoaderTests` 2개(동시 요청 병합 1회 · 디스크 1회 저장+새 인스턴스 재사용) + `Doubles/StubImageURLProtocol` — 예산 테스트 0 → 2(사용자 요청). 디스크 이중 저장 없음 확인(SHA256 경로 동일 + 메모리·디스크 miss일 때만 fetch + in-flight 병합). 유지: `.task` 취소가 fetch를 안 멈춤(대기자 보호), `try? write` best-effort
-- **Commit 5d (신규 · 사용자 결정 · 원래 5b에서 번호 이동)**: `feat: 이미지 디스크 캐시 정리` — init에서 nonisolated Task로 1회 스윕: 수정일 7일 초과 삭제 + 총량 100MB 초과 시 오래된 순 삭제. 측정 가능한 변경이라 단독 커밋. 예산 타입 0 · 메서드 1 · 테스트 1(스윕 동작) · 주석 1줄(임계값 근거)
 - **확인 권장 포인트**: `ImageLoader.image(for:)`의 병합 분기, `fetch`가 actor 상태를 읽지 않는 것(nonisolated 근거), 메모리 경고 대응은 NSCache 자동
-- **상태**: ✔️ COMMITTED — 사용자 요청으로 3분할(5a 로더 2파일 · 5b 뷰 2파일 · 5c 테스트 2파일+AUDIT). 표면: 타입 6(예산 4 + 테스트 2) · protocol 0 · 테스트 2(사용자 요청) · 주석 3줄. 5d 대기
+- **상태**: ✔️ COMMITTED — 사용자 요청으로 3분할(5a 로더 2파일 · 5b 뷰 2파일 · 5c 테스트 2파일+AUDIT). 표면: 타입 6(예산 4 + 테스트 2) · protocol 0 · 테스트 2(사용자 요청) · 주석 3줄
 
-### Commit 6 — ProductList ⬜
+### Commit 6 — ProductList 🟡 IN PROGRESS (6a~6e 분할)
 - **파일**: `Presentation/ProductList/{ProductListView,ProductListViewModel}.swift`, `Presentation/ProductList/Components/{ProductRowView,ProductGridItemView}.swift`, `Presentation/Common/{FavoriteButton,ErrorRetryView,PriceFormatter}.swift`, `JGNR-HWTests/Presentation/ProductListViewModelTests.swift` + 보기 모드 저장 경계(결정에 따라)
 - **완료조건**: 테스트 4개 통과 — ① 16번째 onAppear 반복 5회에 fetch 호출 1회, 15번째는 0회, `total` 도달 후 0회 ② 새로고침이 진행 중 페이지를 취소하고 skip 0 결과로 교체 ③ 찜 스트림 yield가 `favoriteIDs`에 반영 ④ 토글한 모드가 저장되고 새 ViewModel이 복원. 프리뷰로 1열/2열 정적 확인
 - **비목표**: Coordinator 통합(Commit 8), 상세 화면
 - **예산**: 신규 타입 8 · protocol 0~1(결정 A면 +1, 더블 동반) · 테스트 4 · 주석: 임계 인덱스 공식 근거 1줄 허용
 - **로컬 저장 키·인코딩 정리 (2026-09-12 사용자 결정)**: 두 번째 키(보기 모드)가 생기는 이 커밋에서 `Data/Local/LocalStorageKey.swift`에 `enum LocalStorageKey: String { case favoriteIDs, productListLayoutMode }`를 추출하고, `FavoriteLocalDataSource`(Commit 4)의 문자열 키를 이 enum으로 교체한다. Codable 인코딩/디코딩 헬퍼도 사용처가 둘이 되는 이 시점에 Data/Local의 `KeyValueStore` extension으로 추출한다. `Shared/LocalStorage`는 `Data?`만 다루는 상태를 유지 — 키·타입 구분은 Data/Local 소유. 예산: 타입 +1(enum), extension 1
-- **세부 결정 포인트**: **보기 모드 저장 경계** — 아키텍트 안(ViewModel이 `KeyValueStore` 직접 주입)은 아키텍처 검사 `Presentation → KeyValueStore` fail 규칙과 충돌. 선택지: **A(기본값·규칙 준수)** Domain `LayoutPreferenceRepository { load() -> ProductListLayoutMode?; save(_:) }` + `Data/Local/DefaultLayoutPreferenceRepository` + UseCase 2개(`LoadLayoutModeUseCase`·`SaveLayoutModeUseCase`) — protocol +1, 타입 +4 / **B(예외 허용)** ViewModel이 `KeyValueStore`를 직접 받고 `check-architecture.sh` 해당 규칙에서 `KeyValueStore` 제외 + 프로필 §3에 "UI 설정 예외" 명문화 — 타입 +0. 착수 게이트에서 확정
+- **세부 결정 포인트 (2026-09-12 확정)**: 보기 모드 저장 경계 = **안 A + enum** (§2 참조). C안(App 클로저 주입·실무형)도 검토했으나 저장 경로가 둘로 갈려 "규격화" 의도에 미달. 기본값: `PriceFormatter.usd`는 `en_US` 고정 로케일 · 찜 관찰 Task는 `loadFirstPageIfNeeded` 첫 호출에서 시작, deinit 취소 · 취소 테스트는 `StubProductRepository.setPageDelay` · 6b 테스트 0(영속은 6d ViewModel 테스트 ④가 더블로, Codable 헬퍼는 기존 찜 테스트가 검증)
 - **확인 권장 포인트**: `loadNextPageIfNeeded`의 3중 가드 순서, `refresh()`의 취소·폐기 경로, 1열/2열 전환 시 `ScrollView` 유지
 - **상태**: 대기
 
@@ -278,9 +281,13 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 15:10 | Commit 4 착수 게이트 통과 — 4a(원격 6파일)/4b(로컬 3파일) 분할, 결정 포인트 없음(기본값 §5 기록). DummyJSON 실측으로 DTO 필드 확정. sonnet 구현 에이전트 스폰 |
 | 2026-09-12 15:26 | Commit 4 검증 통과 — ios-build(빌드·arch 23/23·테스트 4건 2회 연속, flaky 없음)·ios-review(HIGH: 고위험 영역 접촉, Critical 0, High 1·Medium 1). 사용자 지시로 리뷰 지적 3건 반영(sonnet) → 재검증 테스트 6/6. 4a `ed5e95e` 단독 빌드 확인 후 커밋, 4b(로컬+AUDIT) 커밋. 다음 액션: Commit 5(Shared/Image) 착수 게이트 |
 | 2026-09-12 15:30 | ✔️ Commit 4 COMMITTED — 4a `ed5e95e` · 4b `4024456`. Commit 5 착수 게이트 통과 — 사용자 참고 코드(3단 캐시 로더) 채택, 규칙 충돌 5건 조정(§5 기록), 디스크 캐시 범위 포함. sonnet 구현 에이전트 스폰 |
-| 2026-09-12 15:44 | Commit 5 검증 통과 — ios-build(경고 0·arch 23/23·회귀 6/6)·ios-review(HIGH: 공유 캐시, Critical 0, 면접관 질문 3: actor 블로킹 IO·defaultValue·취소). 커밋 게이트에서 사용자 요청: 전 항목 확인·캐시 테스트·디스크 정리 방안·nonisolated 트레이드오프 → 결정: nonisolated 적용, 디스크 스윕은 5b 별도 커밋. 테스트·defaultValue 수정 sonnet 위임 |
-| 2026-09-12 15:54 | Commit 5 수정 반영 완료(nonisolated·defaultValue static let·directoryName 주입·캐시 테스트 2) → 재검증 8/8·경고 0. 사용자 요청으로 커밋 분할: 5a `ff6c594` · 5b `4cd1f4e` 단독 빌드 확인 후 커밋, 5c(테스트+AUDIT) 커밋. 다음 액션: 5d 디스크 캐시 스윕 착수 게이트 |
+| 2026-09-12 15:44 | Commit 5 검증 통과 — ios-build(경고 0·arch 23/23·회귀 6/6)·ios-review(HIGH: 공유 캐시, Critical 0, 면접관 질문 3: actor 블로킹 IO·defaultValue·취소). 커밋 게이트에서 사용자 요청: 전 항목 확인·캐시 테스트·디스크 정리 방안·nonisolated 트레이드오프 → 결정: nonisolated 적용, 디스크 스윕은 별도 커밋으로(이후 취소). 테스트·defaultValue 수정 sonnet 위임 |
+| 2026-09-12 15:54 | Commit 5 수정 반영 완료(nonisolated·defaultValue static let·directoryName 주입·캐시 테스트 2) → 재검증 8/8·경고 0. 사용자 요청으로 커밋 분할: 5a `ff6c594` · 5b `4cd1f4e` 단독 빌드 확인 후 커밋, 5c(테스트+AUDIT) 커밋. 다음 액션: 디스크 스윕 별도 커밋(이후 취소) |
 | 2026-09-12 15:54 | LEARN: 과잉 산출물 아님 — 커밋 크기 규칙(5~6파일)에 테스트·더블·AUDIT 파일도 포함해 세야 함. 7파일 제안이 두 번째 반려 (Commit 5, 게이트 미검출 아님 — 오케스트레이터 계획 오류) |
+| 2026-09-12 15:55 | ✔️ Commit 5 COMMITTED — 5a `ff6c594` · 5b `4cd1f4e` · 5c `9fdc7ff`. 디스크 스윕 착수 게이트 통과(호출은 AppDependencies에서 1회), sonnet 구현·검증(9/9, 리뷰 Critical 0)까지 진행 |
+| 2026-09-12 16:06 | **사용자 결정: 디스크 캐시 정리(스윕) 취소** — 과제 규모에 과함. 미커밋 변경(`ImageLoader.sweepDiskCache` + 테스트 1) 되돌림, AUDIT §4/§5/Commit 8 계획에서 제거. 비목표로 복귀(PR 개선점 후보). 다음 액션: Commit 6(ProductList) 착수 게이트 |
+| 2026-09-12 16:15 | Commit 6 착수 게이트 통과 — 보기 모드 저장 경계 A + `LocalStorageKey` enum(사용자: 로컬 저장 항목 enum 규격화). 6a~6e 5분할, 이후 커밋은 착수 게이트 없이 검증→커밋 승인만. sonnet에 6a+6b 구현 위임 |
+| 2026-09-12 16:25 | 6a·6b 검증 통과 — ios-build(경고 0·arch 23/23·8/8)·ios-review(HIGH: 찜 키 영역, Critical 0, 호환성 확인). 사용자 요청으로 오케스트레이터가 8파일 직접 대조(JSON 바이트 동일성 스크립트 검증) — 수정 없음. ✔️ 6a `d03a9cc` · 6b 커밋. 다음: 6c·6d 구현 |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
