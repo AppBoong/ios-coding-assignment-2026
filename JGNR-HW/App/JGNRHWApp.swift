@@ -19,7 +19,7 @@ struct JGNRHWApp: App {
                         coordinator.destination(for: route)
                     }
             }
-            .environment(\.imageLoader, dependencies.imageLoader)
+            .environment(\.imageProvider, dependencies.imageProvider)
         }
     }
 }

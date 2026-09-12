@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class AppDependencies {
-    let imageLoader: ImageLoader
+    let imageProvider: ImageProvider
     let favoriteRepository: DefaultFavoriteRepository
     let fetchProductPage: FetchProductPageUseCase
     let fetchProductDetail: FetchProductDetailUseCase
@@ -17,7 +17,7 @@ final class AppDependencies {
         let productRepository = DefaultProductRepository(client: httpClient)
         let layoutPreferenceRepository = DefaultLayoutPreferenceRepository(store: keyValueStore)
 
-        imageLoader = ImageLoader()
+        imageProvider = ImageProvider(loader: ImageLoader())
         favoriteRepository = DefaultFavoriteRepository(dataSource: FavoriteLocalDataSource(store: keyValueStore))
 
         fetchProductPage = FetchProductPageUseCase(repository: productRepository)
