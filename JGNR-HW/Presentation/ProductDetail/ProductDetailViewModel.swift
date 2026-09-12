@@ -48,8 +48,6 @@ final class ProductDetailViewModel {
                 if !Task.isCancelled {
                     self.product = result
                 }
-            } catch is CancellationError {
-                // 취소된 요청의 결과는 버린다
             } catch {
                 if !Task.isCancelled {
                     self.errorMessage = ErrorMessageFormatter.message(for: error)

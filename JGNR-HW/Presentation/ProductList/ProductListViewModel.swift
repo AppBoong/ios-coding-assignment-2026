@@ -115,8 +115,6 @@ final class ProductListViewModel {
                     self.items = page.items
                     self.hasMore = self.items.count < page.total
                 }
-            } catch is CancellationError {
-                // 취소된 새로고침/첫 페이지 요청의 결과는 버린다
             } catch {
                 if !Task.isCancelled {
                     self.firstPageError = ErrorMessageFormatter.message(for: error)
@@ -143,10 +141,10 @@ final class ProductListViewModel {
                 items.append(contentsOf: page.items)
                 hasMore = items.count < page.total
             }
-        } catch is CancellationError {
-            // 취소는 에러로 표시하지 않는다
         } catch {
-            nextPageError = ErrorMessageFormatter.message(for: error)
+            if !Task.isCancelled {
+                nextPageError = ErrorMessageFormatter.message(for: error)
+            }
         }
         isLoadingNextPage = false
         nextPageTask = nil

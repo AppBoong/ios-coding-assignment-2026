@@ -26,7 +26,7 @@ struct URLSessionHTTPClient: HTTPClient {
             (data, response) = try await session.data(for: URLRequest(url: url))
         } catch {
             // URLSession은 Task 취소를 CancellationError가 아니라 URLError(.cancelled)로 던진다 —
-            // 여기서 되돌리지 않으면 호출자의 `catch is CancellationError`를 지나쳐 사용자에게 네트워크 에러로 보인다
+            // 여기서 되돌리지 않으면 호출자가 취소를 네트워크 실패와 구분할 수 없다
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 throw CancellationError()
             }
