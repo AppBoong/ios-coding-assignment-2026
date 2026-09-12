@@ -2,7 +2,7 @@
 kind: feature
 size: L
 area: 전체 (App · Presentation · Domain · Data · Shared) — 신규 앱 초기 구축
-status: in-progress
+status: done
 approved_by:
 approved_at:
 originator: 개발자
