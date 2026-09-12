@@ -155,8 +155,9 @@ enum Route: Hashable { case productDetail(id: Int) }
 | 6b | `feat: 보기 모드 저장 리포지토리 추가` | `Domain/Repositories/LayoutPreferenceRepository` · `Domain/UseCases/{LoadLayoutMode,SaveLayoutMode}UseCase` · `Data/Repositories/DefaultLayoutPreferenceRepository` · `Tests/Doubles/StubLayoutPreferenceRepository` (5) | `[자동]` 단독 빌드 + 아키텍처 | ✔️ COMMITTED `0d76b2b` |
 | 6c | `feat: 목록 공용 컴포넌트 추가` | `Presentation/Common/{FavoriteButton,ErrorRetryView,PriceFormatter,ErrorMessageFormatter}` (4) | `[자동]` 단독 빌드 · `[수동]` `#Preview` | ✔️ COMMITTED `2749511` |
 | 6d | `feat: 상품 목록 ViewModel 추가` | `Presentation/ProductList/ProductListViewModel` · `Tests/Presentation/ProductListViewModelTests` (2) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ✔️ COMMITTED `e666463` |
-| 6e | `feat: 상품 목록 화면 추가` | `Presentation/ProductList/ProductListView` · `Components/{ProductRowView,ProductGridItemView}` (3) + AUDIT | `[자동]` 빌드 · `[수동]` 1열/2열 프리뷰 | ✔️ COMMITTED (이 커밋 — 해시는 Commit 7 갱신 시 기입) |
-| 7 | `feat(detail): add product detail screen with favorite sync` | `Presentation/ProductDetail/**`, `Tests/Presentation/ProductDetailViewModelTests` | `[자동]` 테스트 2개(로드·찜 토글 반영) | ⬜ |
+| 6e | `feat: 상품 목록 화면 추가` | `Presentation/ProductList/ProductListView` · `Components/{ProductRowView,ProductGridItemView}` (3) + AUDIT | `[자동]` 빌드 · `[수동]` 1열/2열 프리뷰 | ✔️ COMMITTED `5b7dcab` |
+| 7a | `feat: 상품 상세 ViewModel 추가` | `Presentation/ProductDetail/ProductDetailViewModel` · `Tests/Presentation/ProductDetailViewModelTests` · `Tests/Support/WaitUntil`(헬퍼 추출) · 목록 테스트 수정 (4) | `[자동]` 테스트 2개(로드 성공/실패 문구·첫 yield+토글 방송) | ✔️ COMMITTED `d0cbcba` |
+| 7b | `feat: 상품 상세 화면 추가` | `Presentation/ProductDetail/ProductDetailView` + AUDIT (2) | `[자동]` 빌드 · `[수동]` `#Preview` · JYPhone 실기기 빌드 | ✔️ COMMITTED (이 커밋 — 해시는 Commit 8 갱신 시 기입) |
 | 8 | `feat(app): wire dependencies and coordinator navigation` | `App/AppDependencies·AppCoordinator·Route·JGNRHWApp(교체)` | `[자동]` verify.md 시나리오 1~7 시뮬레이터 · `[수동]` 8(오프라인) | ⬜ |
 
 > 각 검증 포인트에 **`[자동]`/`[수동]` 마커**를 붙인다 — `[자동]`은 시뮬레이터 조작으로 확인 가능한 항목(`/verify-ios`가 실행), `[수동]`은 사람만 판단 가능한 항목.
@@ -227,14 +228,16 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **확인 권장 포인트**: `loadNextPageIfNeeded`의 4중 가드 순서, `refresh()`의 취소·완료 대기·폐기 경로, 1열/2열 전환 시 `ScrollView` 유지
 - **상태**: ✔️ COMMITTED — 5분할. 표면 합계: 타입 15 · protocol 1 · 테스트 4 · 주석 7줄
 
-### Commit 7 — ProductDetail ⬜
+### Commit 7 — ProductDetail ✔️ COMMITTED (7a `d0cbcba` · 7b)
 - **파일**: `Presentation/ProductDetail/{ProductDetailView,ProductDetailViewModel}.swift`, `JGNR-HWTests/Presentation/ProductDetailViewModelTests.swift`
 - **완료조건**: 테스트 2개 통과 — ① 로드 성공 시 `product` 설정·에러 nil, 실패 시 한국어 메시지 ② 토글 후 스트림 yield로 `isFavorite` 반영. 이미지는 `images` 가로 `TabView(.page)`, 없으면 thumbnail
 - **비목표**: 이미지 확대, 공유
 - **예산**: 신규 타입 2 · protocol 0 · 테스트 2 · 주석 없음
-- **세부 결정 포인트**: 없음 — 기본값(필드 9개, `$`·`-12%` 포맷)
-- **확인 권장 포인트**: 상세 ViewModel의 구독 Task가 deinit/뷰 소멸 시 취소되는지
-- **상태**: 대기
+- **세부 결정 포인트** (2026-09-12 착수 게이트): 7a(VM+테스트)/7b(View+AUDIT) 2분할 · 찜 버튼은 툴바 trailing · 이미지 `TabView(.page)`(없으면 thumbnail) · 할인 배지 `-12%` 녹색 · 재고 0 "품절" 빨강 · 타이틀은 상품명 inline · 구현 완료 후 JYPhone 실기기 빌드(서명 없이 컴파일만 — DEVELOPMENT_TEAM 미설정)
+- **7a 리뷰 반영**: `load()` 공개 유지(재시도 의도 명시·목록 VM 대칭) · 토글 테스트를 초기 `[3]` → 첫 yield true → 토글 false로 재작성 · `waitUntil` 헬퍼를 `Tests/Support/WaitUntil.swift`로 추출(사용처 2곳)
+- **7b 리뷰 반영** (2026-09-12 사용자 결정): ① 네비게이션 타이틀 고정 "상품 상세"(착수 게이트 기본값 '상품명 inline' 변경 — 깜빡임·말줄임·본문 중복 해소) ② 갤러리 `ForEach`를 `Array(urls.enumerated())` 인덱스 식별로 — **근거: imageURLs는 상세 수명 동안 수정·삭제가 없어 인덱스가 안정적, URL 유일성은 서버 보장 없음(실데이터 194개 중복 0이지만 추가 데이터에서 발생 가능). 편집·삭제 기능이 생기면 서버 id 요청 또는 id 부여 페이지 모델로 전환** ③ 이미지·썸네일 모두 없을 때 빈 영역 — 유지(실데이터 누락 0) ④ 프리뷰 매직 넘버 → `fileprivate contentPadding` 참조 ⑤ 도달 불가 `else Color.clear` 삭제
+- **확인 권장 포인트**: 상세 ViewModel의 구독 Task가 뷰 `.task` 취소로 종료되는지
+- **상태**: 7a ✔️ · 7b ✔️ — Commit 7 완료
 
 ### Commit 8 — App 조립·네비게이션 ⬜
 - **파일**: `App/{AppDependencies,AppCoordinator,Route}.swift`, `App/JGNRHWApp.swift`(교체)
@@ -293,6 +296,10 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 17:13 | 6c·6d 검증 — ios-build(경고 0·arch 23/23·12/12 ×3)·ios-review(HIGH, **Critical 2: retryNextPage·runFirstPageFetch 재진입 가드 부재** → 수정, Medium·Low 반영). 오케스트레이터가 refresh/첫 페이지 continuation 순서 경합 추가 발견·수정. 사용자 요청으로 리뷰 항목 직접 대조(수정 없음). ✔️ 6c `2749511` · 6d 커밋. 다음: 6e 화면 |
 | 2026-09-12 17:13 | LEARN: 구현 에이전트가 `isolated deinit`(Swift 6.2 신규 문법) 사용 — 프로필 §3 "Swift 6 표준 문법만"이 구현 프롬프트에 없었음. 문자열 판별 가능 → `check-architecture.sh` PATTERN_RULES 승격 후보(`isolated deinit` fail) (Commit 6d, 게이트 미검출 — 오케스트레이터가 보고에서 잡음) |
 | 2026-09-12 17:21 | 6e 검증 — ios-build(경고 0·arch 23/23·12/12)·ios-review(MEDIUM, Critical 0, Medium 1·Low 1 반영). ✔️ 6e 커밋 — Commit 6 완료(5분할). 다음: Commit 7(상세) 착수 게이트 |
+| 2026-09-12 17:51 | Resume — 마커·git log 대사 일치(6e=`5b7dcab`). 스코프 잠금 없음. Commit 7 착수 게이트 통과 — 결정 2건(7a/7b 분할, 찜 툴바 trailing) + 사용자 요청: 완료 후 JYPhone 실기기 빌드. sonnet 구현 위임 |
+| 2026-09-12 17:51 | 7a 검증 — ios-build(경고 0·arch 23/23·14/14 ×2)·ios-review(LOW, Critical 0, 판단 3건). 사용자 요청으로 3건 상세 분석 → 2건 반영(죽은 대기 교체·waitUntil 추출), 1건 유지(load 공개). 재검증 14/14 ×2. ✔️ 7a `d0cbcba`. 다음: 7b 화면 |
+| 2026-09-12 18:13 | 7b 검증 — ios-build(경고 0·arch 23/23·회귀 14/14)·ios-review(MEDIUM 신규 화면, Critical 0, 판단 5건). 사용자 요청으로 5건 상세 분석(DummyJSON 194개 실데이터 대조: 중복 URL 0·이미지 누락 0) → 4건 반영(고정 타이틀·인덱스 식별+근거 주석·fileprivate 상수·else 삭제), 1건 유지. 재검증 통과. JYPhone 실기기 서명 빌드(Team 커맨드라인 override, pbxproj 불변)·설치·실행 — 이후 사용자가 실기기에서 직접 확인. 다음: 7b 커밋 승인 → Commit 8 |
+| 2026-09-12 18:16 | ✔️ 7b COMMITTED (View+AUDIT). Commit 7 완료(2분할). 사용자: 세션 클리어 예정. **다음 액션: Commit 8(App 조립·네비게이션) 착수 게이트(Step 2.0)** — 완료 후 JYPhone 재설치(서명: `-allowProvisioningUpdates DEVELOPMENT_TEAM=MU569YV3Y3`, 기기 id `00008150-001A03863C84401C`, devicectl `02D934DE-…`)로 목록·상세·찜 직접 확인 |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
