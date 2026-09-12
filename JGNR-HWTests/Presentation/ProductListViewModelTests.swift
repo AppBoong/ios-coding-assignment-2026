@@ -30,14 +30,6 @@ struct ProductListViewModelTests {
         )
     }
 
-    private func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0..<200 {
-            if condition() { return }
-            await Task.yield()
-            try? await Task.sleep(for: .milliseconds(5))
-        }
-    }
-
     @Test("마지막 페이지 16번째 아이템에서만 다음 페이지를 1회 요청한다")
     func requestsNextPageOnceAtThreshold() async throws {
         let product = StubProductRepository(pageResults: [
