@@ -146,8 +146,11 @@ enum Route: Hashable { case productDetail(id: Int) }
 | 3b | `feat: 리포지토리 계약·유스케이스 추가` | `Domain/Repositories/*` (2) + `Domain/UseCases/*` (4) | `[자동]` 단독 빌드 | ✔️ COMMITTED `8a308cc` |
 | 3c | `test: 도메인 테스트 더블 추가` | `Tests/Doubles/StubProductRepository·StubFavoriteRepository` + AUDIT | `[자동]` 빌드 + 아키텍처 검사 23/23 + 테스트 1건 | ✔️ COMMITTED `90b0552` |
 | 4a | `feat: 원격 상품 리포지토리 추가` | `Data/Remote/ProductEndpoint` · `Data/Remote/DTO/*` (3) · `Data/Repositories/DefaultProductRepository` · `Tests/Data/ProductDTOMappingTests` | `[자동]` 단독 빌드 + 매핑·쿼리 테스트 3건 | ✔️ COMMITTED `ed5e95e` |
-| 4b | `feat: 로컬 찜 리포지토리 추가` | `Data/Local/FavoriteLocalDataSource` · `Data/Repositories/DefaultFavoriteRepository` · `Tests/Data/DefaultFavoriteRepositoryTests` + AUDIT | `[자동]` 테스트 2건(영속 복원·구독자 2개 방송) | ✔️ COMMITTED (이 커밋 — 해시는 Commit 5 갱신 시 기입) |
-| 5 | `feat(shared): add actor-based image loader and RemoteImage view` | `Shared/Image/*` | `[자동]` 빌드 · `[수동]` `#Preview` 정적 확인 | ⬜ |
+| 4b | `feat: 로컬 찜 리포지토리 추가` | `Data/Local/FavoriteLocalDataSource` · `Data/Repositories/DefaultFavoriteRepository` · `Tests/Data/DefaultFavoriteRepositoryTests` + AUDIT | `[자동]` 테스트 2건(영속 복원·구독자 2개 방송) | ✔️ COMMITTED `4024456` |
+| 5a | `feat: 이미지 로더 추가` | `Shared/Image/{ImageLoader,ImageLoaderError}` | `[자동]` 단독 빌드 | ✔️ COMMITTED `ff6c594` |
+| 5b | `feat: RemoteImage 뷰 추가` | `Shared/Image/{RemoteImage,ImageLoaderEnvironmentKey}` | `[자동]` 단독 빌드 · `[수동]` Commit 8 후 verify | ✔️ COMMITTED `4cd1f4e` |
+| 5c | `test: 이미지 로더 캐시 테스트 추가` | `Tests/Doubles/StubImageURLProtocol` · `Tests/Shared/ImageLoaderTests` + AUDIT | `[자동]` 테스트 2건(병합 1회·디스크 1회 저장) | ✔️ COMMITTED (이 커밋 — 해시는 5d 갱신 시 기입) |
+| 5d | `feat: 이미지 디스크 캐시 정리` | `Shared/Image/ImageLoader`(스윕 메서드) + 테스트 1 | `[자동]` 스윕 테스트 | ⬜ |
 | 6 | `feat(list): add product list screen with pagination, refresh, layout toggle` | `Presentation/ProductList/**`, `Presentation/Common/*`, `Tests/Presentation/ProductListViewModelTests` (+ 보기 모드 저장 경계 파일 — 결정에 따라 Domain/Data) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ⬜ |
 | 7 | `feat(detail): add product detail screen with favorite sync` | `Presentation/ProductDetail/**`, `Tests/Presentation/ProductDetailViewModelTests` | `[자동]` 테스트 2개(로드·찜 토글 반영) | ⬜ |
 | 8 | `feat(app): wire dependencies and coordinator navigation` | `App/AppDependencies·AppCoordinator·Route·JGNRHWApp(교체)` | `[자동]` verify.md 시나리오 1~7 시뮬레이터 · `[수동]` 8(오프라인) | ⬜ |
@@ -187,7 +190,7 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **리뷰 잔여(다음 커밋 확인)**: ① `ProductListLayoutMode`를 Domain에 둔 근거를 Commit 6 저장 경계 결정 시 커밋 메시지에 한 줄 ② 더블의 다중 구독 구조를 `DefaultFavoriteRepository`(Commit 4)도 동일하게 갈지 착수 게이트에서 확인 ③ `StubProductRepository` 큐 소비 규칙(마지막 결과 재사용)이 Commit 6 첫 테스트 의도와 맞는지 재확인
 - **상태**: ✔️ COMMITTED — 3a `f0d9dc1`(Entity 4) · 3b `8a308cc`(protocol 2 + UseCase 4) · 3c(더블 2 + AUDIT). 표면: 타입 12(예산 10, 초과 2 = 더블 중첩 `Failure`·`PageCall`) · protocol 2 · 테스트 0 · 주석 0
 
-### Commit 4 — Data ✔️ COMMITTED (4a `ed5e95e` · 4b)
+### Commit 4 — Data ✔️ COMMITTED (4a `ed5e95e` · 4b `4024456`)
 - **파일**: `Data/Remote/ProductEndpoint.swift`, `Data/Remote/DTO/{ProductSummaryDTO,ProductPageDTO,ProductDetailDTO}.swift`(각각 `toEntity()`), `Data/Local/FavoriteLocalDataSource.swift`, `Data/Repositories/{DefaultProductRepository,DefaultFavoriteRepository}.swift`, `JGNR-HWTests/Data/{ProductDTOMappingTests,DefaultFavoriteRepositoryTests}.swift`
 - **완료조건**: 테스트 통과 — ① DTO JSON(brand 누락 포함) → Entity 매핑 ② 토글 후 `StubKeyValueStore`에 저장되고 새 인스턴스가 복원 ③ `observe()` 구독자 2개가 토글 1회에 같은 Set을 받음
 - **비목표**: 네트워크 실제 연결(verify-ios), 디스크 캐시
@@ -198,14 +201,16 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **리뷰 반영 (사용자 지시 "리뷰 지적 모두 수정")**: ① `save` 인코딩 실패 시 `set(nil)` 삭제 → `guard … return`(쓰기 무시) ② `observe()` `bufferingPolicy: .bufferingNewest(1)` 명시 ③ 매핑 테스트 1 → 3 분리(페이지/상세+brand 누락/select 쿼리). 미반영: `load()` 디코딩 실패 → 빈 Set 폴백(리뷰어 "지금 고칠 필요 없음", KeyValueStore가 throw하지 않아 대안 없음 — Commit 6 `LocalStorageKey` 추출 때 재확인)
 - **상태**: ✔️ COMMITTED. 표면: 타입 9(예산 7 + 테스트 스위트 2) · protocol 0 · 테스트 5(예산 3 — 사용자 지시로 분리) · 주석 1줄(허용). 위험도 HIGH(고위험 영역 접촉) — 심층 리뷰는 Commit 8 후 `/review-ios` 권장
 
-### Commit 5 — Shared/Image ⬜
-- **파일**: `Shared/Image/{ImageLoader,RemoteImage,ImageLoaderEnvironmentKey}.swift`
-- **완료조건**: 빌드 통과. `ImageLoader`가 NSCache 상한 설정, 같은 URL 동시 요청을 in-flight `Task` 딕셔너리로 병합, 디코딩(`UIImage(data:)`)을 actor 안에서 수행. `RemoteImage`는 `.task(id: url)`로 로드하고 사라지면 취소
-- **비목표**: 디스크 캐시, 다운샘플링, 프로그레시브 로딩
-- **예산**: 신규 타입 3 · protocol 0 · 테스트 0(밀도 간결 — verify/trace로 확인) · 주석: in-flight 병합 의도 1줄 허용
-- **세부 결정 포인트**: 없음 — 기본값(countLimit 200, totalCostLimit 50MB)
-- **확인 권장 포인트**: `ImageLoader.image(for:)`의 병합 분기, 메모리 경고 대응은 NSCache 자동
-- **상태**: 대기
+### Commit 5 — Shared/Image ✔️ COMMITTED (5a `ff6c594` · 5b `4cd1f4e` · 5c) / 5d ⬜
+- **파일**: `Shared/Image/{ImageLoader,ImageLoaderError,RemoteImage,ImageLoaderEnvironmentKey}.swift`
+- **완료조건**: 빌드 통과. `ImageLoader`가 **메모리(NSCache 상한) → 디스크(Caches/ImageCache, SHA256 파일명) → 네트워크** 순으로 조회, 같은 URL 동시 요청을 in-flight `Task` 딕셔너리로 병합, 디코딩(`UIImage(data:)`)을 actor 안에서 수행. `RemoteImage`는 `.task(id: url)`로 로드하고 사라지면 취소
+- **비목표**: 다운샘플링, 프로그레시브 로딩, 디스크 캐시 만료·용량 정리
+- **예산**: 신규 타입 4(에러 enum +1) · protocol 0 · 테스트 0(밀도 간결 — verify/trace로 확인) · 주석: in-flight 병합 의도 1줄 + 파일명 해시 근거 1줄 허용
+- **세부 결정 포인트 (2026-09-12 착수 게이트 · 사용자 참고 코드 제공)**: 사용자가 메모리→디스크→네트워크 3단 로더 코드를 참고로 제시 → **디스크 캐시를 범위에 포함**(비목표에서 제거). 규칙 충돌 조정: `static let shared` 제거(Locked: AppDependencies 생성 + Environment 주입) · `///` 제거(밀도 간결) · `DataFetcher` protocol 제거(사용처 1곳 → `URLSession` 직접 주입) · `cachedImage(for:)` 제외(호출처 0) · `urls(for:)[0]` → `URL.cachesDirectory` · NSCache 상한 200개/50MB 유지 · `image(for:) async throws -> UIImage` + `ImageLoaderError { invalidResponse, decodingFailed }`
+- **커밋 게이트 수정 (2026-09-12 사용자 지시 "리뷰어가 찾은 부분 전부 확인 + 캐시 테스트 + 디스크 정리 방안 + nonisolated 트레이드오프")**: ① `fetch`·`fileURL`을 `nonisolated`로 — 디스크 IO·디코딩을 actor 밖 협력 풀에서, actor 임계구역은 `inFlight`·NSCache만(트레이드오프: 홉 2회·동시 디코딩 메모리 — 썸네일 규모 무시 가능) ② `EnvironmentKey.defaultValue` 계산 프로퍼티 → `static let`(접근마다 새 로더 함정 제거) ③ `init(directoryName:)` 주입(테스트 격리) ④ `JGNR-HWTests/Shared/ImageLoaderTests` 2개(동시 요청 병합 1회 · 디스크 1회 저장+새 인스턴스 재사용) + `Doubles/StubImageURLProtocol` — 예산 테스트 0 → 2(사용자 요청). 디스크 이중 저장 없음 확인(SHA256 경로 동일 + 메모리·디스크 miss일 때만 fetch + in-flight 병합). 유지: `.task` 취소가 fetch를 안 멈춤(대기자 보호), `try? write` best-effort
+- **Commit 5d (신규 · 사용자 결정 · 원래 5b에서 번호 이동)**: `feat: 이미지 디스크 캐시 정리` — init에서 nonisolated Task로 1회 스윕: 수정일 7일 초과 삭제 + 총량 100MB 초과 시 오래된 순 삭제. 측정 가능한 변경이라 단독 커밋. 예산 타입 0 · 메서드 1 · 테스트 1(스윕 동작) · 주석 1줄(임계값 근거)
+- **확인 권장 포인트**: `ImageLoader.image(for:)`의 병합 분기, `fetch`가 actor 상태를 읽지 않는 것(nonisolated 근거), 메모리 경고 대응은 NSCache 자동
+- **상태**: ✔️ COMMITTED — 사용자 요청으로 3분할(5a 로더 2파일 · 5b 뷰 2파일 · 5c 테스트 2파일+AUDIT). 표면: 타입 6(예산 4 + 테스트 2) · protocol 0 · 테스트 2(사용자 요청) · 주석 3줄. 5d 대기
 
 ### Commit 6 — ProductList ⬜
 - **파일**: `Presentation/ProductList/{ProductListView,ProductListViewModel}.swift`, `Presentation/ProductList/Components/{ProductRowView,ProductGridItemView}.swift`, `Presentation/Common/{FavoriteButton,ErrorRetryView,PriceFormatter}.swift`, `JGNR-HWTests/Presentation/ProductListViewModelTests.swift` + 보기 모드 저장 경계(결정에 따라)
@@ -272,6 +277,10 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 15:08 | Commit 3 검증 통과 — ios-build(앱 스킴 빌드·arch 23/23·테스트 1건, 자동 수정 0)·ios-review(LOW, Critical 0, High 1: 더블 큐 소비 규칙 비자명 — 보고만). 커밋 게이트에서 사용자 반려: 13파일은 과다 → 3분할 + 이후 커밋당 5~6파일 이하 규칙(§2 기록). 3a `f0d9dc1`·3b `8a308cc` 단독 빌드 확인 후 커밋, 3c(더블+AUDIT) 커밋. 다음 액션: Commit 4 착수 게이트(분할안 제시) |
 | 2026-09-12 15:10 | Commit 4 착수 게이트 통과 — 4a(원격 6파일)/4b(로컬 3파일) 분할, 결정 포인트 없음(기본값 §5 기록). DummyJSON 실측으로 DTO 필드 확정. sonnet 구현 에이전트 스폰 |
 | 2026-09-12 15:26 | Commit 4 검증 통과 — ios-build(빌드·arch 23/23·테스트 4건 2회 연속, flaky 없음)·ios-review(HIGH: 고위험 영역 접촉, Critical 0, High 1·Medium 1). 사용자 지시로 리뷰 지적 3건 반영(sonnet) → 재검증 테스트 6/6. 4a `ed5e95e` 단독 빌드 확인 후 커밋, 4b(로컬+AUDIT) 커밋. 다음 액션: Commit 5(Shared/Image) 착수 게이트 |
+| 2026-09-12 15:30 | ✔️ Commit 4 COMMITTED — 4a `ed5e95e` · 4b `4024456`. Commit 5 착수 게이트 통과 — 사용자 참고 코드(3단 캐시 로더) 채택, 규칙 충돌 5건 조정(§5 기록), 디스크 캐시 범위 포함. sonnet 구현 에이전트 스폰 |
+| 2026-09-12 15:44 | Commit 5 검증 통과 — ios-build(경고 0·arch 23/23·회귀 6/6)·ios-review(HIGH: 공유 캐시, Critical 0, 면접관 질문 3: actor 블로킹 IO·defaultValue·취소). 커밋 게이트에서 사용자 요청: 전 항목 확인·캐시 테스트·디스크 정리 방안·nonisolated 트레이드오프 → 결정: nonisolated 적용, 디스크 스윕은 5b 별도 커밋. 테스트·defaultValue 수정 sonnet 위임 |
+| 2026-09-12 15:54 | Commit 5 수정 반영 완료(nonisolated·defaultValue static let·directoryName 주입·캐시 테스트 2) → 재검증 8/8·경고 0. 사용자 요청으로 커밋 분할: 5a `ff6c594` · 5b `4cd1f4e` 단독 빌드 확인 후 커밋, 5c(테스트+AUDIT) 커밋. 다음 액션: 5d 디스크 캐시 스윕 착수 게이트 |
+| 2026-09-12 15:54 | LEARN: 과잉 산출물 아님 — 커밋 크기 규칙(5~6파일)에 테스트·더블·AUDIT 파일도 포함해 세야 함. 7파일 제안이 두 번째 반려 (Commit 5, 게이트 미검출 아님 — 오케스트레이터 계획 오류) |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
