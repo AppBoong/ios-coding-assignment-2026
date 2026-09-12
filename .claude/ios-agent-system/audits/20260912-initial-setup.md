@@ -154,8 +154,8 @@ enum Route: Hashable { case productDetail(id: Int) }
 | 6a | `refactor: 로컬 저장 키·Codable 헬퍼 추출` | `Data/Local/{LocalStorageKey,KeyValueStore+Codable}` · `FavoriteLocalDataSource` 수정 (3) | `[자동]` 기존 테스트 8/8(키 불변) | ✔️ COMMITTED `d03a9cc` |
 | 6b | `feat: 보기 모드 저장 리포지토리 추가` | `Domain/Repositories/LayoutPreferenceRepository` · `Domain/UseCases/{LoadLayoutMode,SaveLayoutMode}UseCase` · `Data/Repositories/DefaultLayoutPreferenceRepository` · `Tests/Doubles/StubLayoutPreferenceRepository` (5) | `[자동]` 단독 빌드 + 아키텍처 | ✔️ COMMITTED `0d76b2b` |
 | 6c | `feat: 목록 공용 컴포넌트 추가` | `Presentation/Common/{FavoriteButton,ErrorRetryView,PriceFormatter,ErrorMessageFormatter}` (4) | `[자동]` 단독 빌드 · `[수동]` `#Preview` | ✔️ COMMITTED `2749511` |
-| 6d | `feat: 상품 목록 ViewModel 추가` | `Presentation/ProductList/ProductListViewModel` · `Tests/Presentation/ProductListViewModelTests` (2) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ✔️ COMMITTED (이 커밋 — 해시는 6e 갱신 시 기입) |
-| 6e | `feat: 상품 목록 화면 추가` | `Presentation/ProductList/ProductListView` · `Components/{ProductRowView,ProductGridItemView}` (3) | `[자동]` 빌드 · `[수동]` 1열/2열 프리뷰 | ⬜ |
+| 6d | `feat: 상품 목록 ViewModel 추가` | `Presentation/ProductList/ProductListViewModel` · `Tests/Presentation/ProductListViewModelTests` (2) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ✔️ COMMITTED `e666463` |
+| 6e | `feat: 상품 목록 화면 추가` | `Presentation/ProductList/ProductListView` · `Components/{ProductRowView,ProductGridItemView}` (3) + AUDIT | `[자동]` 빌드 · `[수동]` 1열/2열 프리뷰 | ✔️ COMMITTED (이 커밋 — 해시는 Commit 7 갱신 시 기입) |
 | 7 | `feat(detail): add product detail screen with favorite sync` | `Presentation/ProductDetail/**`, `Tests/Presentation/ProductDetailViewModelTests` | `[자동]` 테스트 2개(로드·찜 토글 반영) | ⬜ |
 | 8 | `feat(app): wire dependencies and coordinator navigation` | `App/AppDependencies·AppCoordinator·Route·JGNRHWApp(교체)` | `[자동]` verify.md 시나리오 1~7 시뮬레이터 · `[수동]` 8(오프라인) | ⬜ |
 
@@ -215,7 +215,7 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **확인 권장 포인트**: `ImageLoader.image(for:)`의 병합 분기, `fetch`가 actor 상태를 읽지 않는 것(nonisolated 근거), 메모리 경고 대응은 NSCache 자동
 - **상태**: ✔️ COMMITTED — 사용자 요청으로 3분할(5a 로더 2파일 · 5b 뷰 2파일 · 5c 테스트 2파일+AUDIT). 표면: 타입 6(예산 4 + 테스트 2) · protocol 0 · 테스트 2(사용자 요청) · 주석 3줄
 
-### Commit 6 — ProductList 🟡 IN PROGRESS (6a~6e 분할)
+### Commit 6 — ProductList ✔️ COMMITTED (6a `d03a9cc` · 6b `0d76b2b` · 6c `2749511` · 6d `e666463` · 6e)
 - **파일**: `Presentation/ProductList/{ProductListView,ProductListViewModel}.swift`, `Presentation/ProductList/Components/{ProductRowView,ProductGridItemView}.swift`, `Presentation/Common/{FavoriteButton,ErrorRetryView,PriceFormatter}.swift`, `JGNR-HWTests/Presentation/ProductListViewModelTests.swift` + 보기 모드 저장 경계(결정에 따라)
 - **완료조건**: 테스트 4개 통과 — ① 16번째 onAppear 반복 5회에 fetch 호출 1회, 15번째는 0회, `total` 도달 후 0회 ② 새로고침이 진행 중 페이지를 취소하고 skip 0 결과로 교체 ③ 찜 스트림 yield가 `favoriteIDs`에 반영 ④ 토글한 모드가 저장되고 새 ViewModel이 복원. 프리뷰로 1열/2열 정적 확인
 - **비목표**: Coordinator 통합(Commit 8), 상세 화면
@@ -223,8 +223,9 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **로컬 저장 키·인코딩 정리 (2026-09-12 사용자 결정)**: 두 번째 키(보기 모드)가 생기는 이 커밋에서 `Data/Local/LocalStorageKey.swift`에 `enum LocalStorageKey: String { case favoriteIDs, productListLayoutMode }`를 추출하고, `FavoriteLocalDataSource`(Commit 4)의 문자열 키를 이 enum으로 교체한다. Codable 인코딩/디코딩 헬퍼도 사용처가 둘이 되는 이 시점에 Data/Local의 `KeyValueStore` extension으로 추출한다. `Shared/LocalStorage`는 `Data?`만 다루는 상태를 유지 — 키·타입 구분은 Data/Local 소유. 예산: 타입 +1(enum), extension 1
 - **세부 결정 포인트 (2026-09-12 확정)**: 보기 모드 저장 경계 = **안 A + enum** (§2 참조). C안(App 클로저 주입·실무형)도 검토했으나 저장 경로가 둘로 갈려 "규격화" 의도에 미달. 기본값: `PriceFormatter.usd`는 `en_US` 고정 로케일 · 찜 관찰 Task는 `loadFirstPageIfNeeded` 첫 호출에서 시작, deinit 취소 · 취소 테스트는 `StubProductRepository.setPageDelay` · 6b 테스트 0(영속은 6d ViewModel 테스트 ④가 더블로, Codable 헬퍼는 기존 찜 테스트가 검증)
 - **6c·6d 구현 기록 (2026-09-12)**: `isolated deinit`(Swift 6.2 신규 문법)은 규칙상 배제 → 찜 관찰은 뷰 `.task`가 취소하는 구조적 `observeFavoriteChanges()`, deinit 없음. `ErrorMessageFormatter`(NetworkError → 한국어) Common에 추가(타입 +1). 리뷰 Critical 2(재시도·첫 페이지 재진입 가드) + 오케스트레이터 발견 1(refresh 중 첫 페이지 로드 시 continuation 재개 순서 경합 → `firstPageTask == task` 동일성 정리) 반영. `refresh()`는 취소한 Task 완료를 await한 뒤 재요청(요청 순서 결정성). 주석 5줄(예산 1 초과 4 — 리뷰 판정 재진술 아님, 사용자 유지 결정)
+- **6e 기록**: 리뷰 Medium(목록 있는 상태의 새로고침 실패 무피드백) → 상단 인라인 `ErrorRetryView`(목록 유지) / Low → 셀 `.accessibilityAddTraits(.isButton)`. 1열 썸네일 80pt 고정은 아이콘급 예외(주석 근거)
 - **확인 권장 포인트**: `loadNextPageIfNeeded`의 4중 가드 순서, `refresh()`의 취소·완료 대기·폐기 경로, 1열/2열 전환 시 `ScrollView` 유지
-- **상태**: 대기
+- **상태**: ✔️ COMMITTED — 5분할. 표면 합계: 타입 15 · protocol 1 · 테스트 4 · 주석 7줄
 
 ### Commit 7 — ProductDetail ⬜
 - **파일**: `Presentation/ProductDetail/{ProductDetailView,ProductDetailViewModel}.swift`, `JGNR-HWTests/Presentation/ProductDetailViewModelTests.swift`
@@ -291,6 +292,7 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 16:25 | 6a·6b 검증 통과 — ios-build(경고 0·arch 23/23·8/8)·ios-review(HIGH: 찜 키 영역, Critical 0, 호환성 확인). 사용자 요청으로 오케스트레이터가 8파일 직접 대조(JSON 바이트 동일성 스크립트 검증) — 수정 없음. ✔️ 6a `d03a9cc` · 6b 커밋. 다음: 6c·6d 구현 |
 | 2026-09-12 17:13 | 6c·6d 검증 — ios-build(경고 0·arch 23/23·12/12 ×3)·ios-review(HIGH, **Critical 2: retryNextPage·runFirstPageFetch 재진입 가드 부재** → 수정, Medium·Low 반영). 오케스트레이터가 refresh/첫 페이지 continuation 순서 경합 추가 발견·수정. 사용자 요청으로 리뷰 항목 직접 대조(수정 없음). ✔️ 6c `2749511` · 6d 커밋. 다음: 6e 화면 |
 | 2026-09-12 17:13 | LEARN: 구현 에이전트가 `isolated deinit`(Swift 6.2 신규 문법) 사용 — 프로필 §3 "Swift 6 표준 문법만"이 구현 프롬프트에 없었음. 문자열 판별 가능 → `check-architecture.sh` PATTERN_RULES 승격 후보(`isolated deinit` fail) (Commit 6d, 게이트 미검출 — 오케스트레이터가 보고에서 잡음) |
+| 2026-09-12 17:21 | 6e 검증 — ios-build(경고 0·arch 23/23·12/12)·ios-review(MEDIUM, Critical 0, Medium 1·Low 1 반영). ✔️ 6e 커밋 — Commit 6 완료(5분할). 다음: Commit 7(상세) 착수 게이트 |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
