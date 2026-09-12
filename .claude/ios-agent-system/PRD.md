@@ -61,10 +61,10 @@
 | 아키텍처 추상화 | 풀 Clean — Domain에 Entity·Repository protocol·UseCase(struct) | 심사 포인트인 "계층별 책임"을 명시. UseCase는 concrete struct(protocol 없음) |
 | 비동기 처리 | Swift Concurrency 전용 (async/await · actor · AsyncStream · Task) | Swift 6 strict와 정합. Combine·GCD·완료 핸들러 금지 |
 | UI 프레임워크 | SwiftUI 전용 | 과제 조건 |
-| DI 방식 | 수동 이니셜라이저 주입 — 조립 지점 `App/AppDependencies`(인프라→Repository→UseCase) + `App/AppCoordinator`(ViewModel) | 외부 의존 없음, 설명 쉬움, 테스트 더블 교체 용이. 싱글턴 금지. ImageLoader만 SwiftUI Environment로 전달(인스턴스는 AppDependencies가 1개 생성) |
+| DI 방식 | 수동 이니셜라이저 주입 — 조립 지점 `App/AppDependencies`(인프라→Repository→UseCase) + `App/AppCoordinator`(ViewModel) | 외부 의존 없음, 설명 쉬움, 테스트 더블 교체 용이. 싱글턴 금지. ImageProvider만 SwiftUI Environment로 전달(인스턴스는 AppDependencies가 1개 생성) |
 | 네트워크 레이어 | URLSession 직접 — `HTTPClient` protocol + `URLSessionHTTPClient` + `Endpoint` + Codable DTO + `NetworkError` | API 2개 규모. 외부 의존 0 |
 | 로컬 저장 | UserDefaults — `KeyValueStore` protocol + `UserDefaultsKeyValueStore`. 찜 ID 집합(`Set<Int>`) + 보기 모드 | 요구(종료 후 유지)를 최소 코드로. protocol 뒤라 교체 가능 |
-| 이미지 로딩 | 자체 구현 — `actor ImageLoader`(NSCache + in-flight 병합) + `RemoteImage` 뷰 | 외부 의존 0, `AsyncImage`는 캐시 없음 |
+| 이미지 로딩 | 자체 구현 — `@MainActor ImageProvider`(NSCache 메모리 캐시) + `actor ImageLoader`(디스크 캐시 + in-flight 병합) + `RemoteImage` 뷰 | 외부 의존 0, `AsyncImage`는 캐시 없음. 메모리 캐시를 MainActor에 두어야 뷰가 캐시 히트를 동기로 읽어 첫 프레임부터 그린다(깜빡임 제거) |
 | 최소 지원 OS / Swift | iOS 17.0+ / Swift 6 strict / 기본 격리 `nonisolated` | `@Observable` 사용 가능 최소선. 격리를 명시해 경계가 코드에 드러남 |
 | 외부 의존성 | 없음 | F9·PR 설명 부담 없음 |
 | 린트 | 없음 (SwiftLint 미사용) | 사용자 결정. 컨벤션은 `check-architecture.sh` + 리뷰 게이트 |
@@ -102,7 +102,7 @@ App (JGNRHWApp · AppDependencies · AppCoordinator · Route)
       └─ Domain (Entities · Repositories(protocol) · UseCases(struct))  ── Foundation만
             ▲
       Data (Remote: Endpoint·DTO / Local: FavoriteLocalDataSource / Repositories: Default*)
-       └─ Shared (Network: HTTPClient / LocalStorage: KeyValueStore / Image: ImageLoader·RemoteImage)
+       └─ Shared (Network: HTTPClient / LocalStorage: KeyValueStore / Image: ImageProvider·ImageLoader·RemoteImage)
 ```
 
 - 핵심 데이터 흐름: View `.task` → ViewModel → UseCase → Repository(원격 `DefaultProductRepository` = HTTPClient+DTO 매핑 / 로컬 `DefaultFavoriteRepository` = KeyValueStore + `Set<Int>` 진실 + AsyncStream 방송) → ViewModel 상태 갱신 → View 재렌더
@@ -121,5 +121,7 @@ App (JGNRHWApp · AppDependencies · AppCoordinator · Route)
 - Swift 6 strict + 기본 격리 `nonisolated` 조합에서 Sendable·격리 컴파일 에러 다발 예상 → Domain/DTO에 `Sendable` 조기 부여, 커밋마다 빌드
 - 페이지네이션 임계 인덱스 off-by-one → Commit 6 테스트가 "16번째에서 정확히 1회"를 검증
 - 보기 모드 저장 경계(ViewModel이 인프라를 직접 볼 수 없음) → Commit 6 착수 게이트에서 Repository+UseCase 안 vs 예외 허용 안 결정
-- ImageLoader in-flight 병합은 유닛 테스트 범위 밖(밀도 간결) → `/verify-ios`·네트워크 로그로 확인
-- 의도적으로 미룬 것: 목록 오프라인 캐시, 이미지 디스크 캐시, 검색, UI 테스트
+- 이미지 디스크 캐시에 용량 상한·정리가 없다 — `URL.cachesDirectory`라 OS가 압박 시 회수하는 것에 의존한다
+- 진단 로그 인프라가 없다 — `NetworkError.transport`·`.decoding`이 원인 문자열을 담지만 읽는 곳이 없어 실패 원인이 소멸한다
+- 찜 JSON 디코딩이 실패하면 "저장값 없음"과 구분되지 않아, 다음 토글이 원본을 빈 집합으로 덮어쓴다 (저장 스키마를 바꿀 때 마이그레이션 필요)
+- 의도적으로 미룬 것: 목록 오프라인 캐시, 검색, UI 테스트
