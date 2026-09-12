@@ -62,6 +62,8 @@
 | 목록 API 필드 축소 | `select=id,title,price,thumbnail` → `ProductSummaryDTO` 별도 | 원격 응답 책임을 좁힘 |
 | Domain UseCase 테스트 | 별도 없음 (위임형) | 밀도 "테스트 간결" — Data/Presentation 테스트가 간접 검증 |
 | UserDefaults 보관 방식 | `UserDefaultsKeyValueStore`는 `suiteName: String?`만 보관, 호출마다 `UserDefaults(suiteName:) ?? .standard` 접근 | Swift 6 strict에서 Sendable struct가 non-Sendable `UserDefaults`를 저장 프로퍼티로 못 가짐. `@preconcurrency import`로 낮추면 경고가 남고 검사 우회 범주 — 2026-09-12 Commit 2 결정 |
+| `FavoriteRepository` 시그니처 | `toggle(id:) async` + `observe() async -> AsyncStream<Set<Int>>` 2개 — `observe()`는 구독 즉시 현재 Set을 먼저 yield하고 이후 변경마다 방송. `currentFavoriteIDs()` 폐기 | UseCase 호출처가 0인 메서드를 protocol에 두지 않는다(리뷰 Critical 기준). ViewModel은 첫 yield로 초기값을 받는다 — 2026-09-12 Commit 3 착수 게이트 결정 |
+| 커밋 크기 | **커밋당 파일 5~6개 이하** — 의존 순서(하위→상위)로 나눠 각 커밋이 단독 빌드되게 하고 커밋마다 빌드 확인. Commit 4~8은 착수 게이트에서 미리 분할 제시 | 사용자 결정 2026-09-12 Commit 3 게이트 — 13파일 커밋 반려("파일이 너무 많음, 분할하여 커밋 진행") |
 | Commit 1 생성 방식 | **안 B — 에이전트(opus)가 pbxproj·스킴 직접 작성** (2026-09-12 Step 2.0에서 안 A → 안 B로 변경) | 사용자 지시: Fable은 총괄만, 작업은 서브에이전트 위임. `*.pbxproj` 쓰기는 게이트 ask 승인 1회. 생성 후 showBuildSettings·build·test로 검증 |
 
 ---
@@ -86,7 +88,7 @@ struct ProductPage: Sendable, Equatable { let items: [ProductSummary]; let total
 struct Product: Sendable, Identifiable, Equatable { id, title, description, category, price, discountRate, rating, stock, brand: String?, thumbnailURL: URL?, imageURLs: [URL] }
 enum ProductListLayoutMode: String, Sendable, Codable { case list, grid }
 protocol ProductRepository: Sendable { func fetchPage(skip: Int, limit: Int) async throws -> ProductPage; func fetchDetail(id: Int) async throws -> Product }
-protocol FavoriteRepository: Sendable { func currentFavoriteIDs() async -> Set<Int>; func toggle(id: Int) async; func observe() async -> AsyncStream<Set<Int>> }
+protocol FavoriteRepository: Sendable { func toggle(id: Int) async; func observe() async -> AsyncStream<Set<Int>> }  // observe: 현재 스냅샷 먼저 yield (Commit 3 결정)
 struct FetchProductPageUseCase: Sendable { let repository: ProductRepository; func execute(skip: Int, limit: Int) async throws -> ProductPage }
 struct FetchProductDetailUseCase / ToggleFavoriteUseCase / ObserveFavoritesUseCase  // 같은 형태, 메서드 하나
 
@@ -139,9 +141,11 @@ enum Route: Hashable { case productDetail(id: Int) }
 | # | 커밋 메시지(안) | 범위 | 직접 검증 포인트 | 상태 |
 |---|----------------|------|-----------------|------|
 | 1 | `chore: scaffold JGNR-HW xcodeproj with Swift 6 strict settings` | xcodeproj(GUI 생성) + 빈 `App/JGNRHWApp.swift` + 더미 테스트 1개 + 레이어 디렉토리 | `[자동]` 빌드·테스트 1개 통과 · `[수동]` 빌드 설정 5개 값 확인 | ✔️ COMMITTED `a4c3233` (셋업 산출물은 `d2e082b`로 분리) |
-| 2 | `feat(shared): add HTTPClient and KeyValueStore infrastructure` | `Shared/Network/*`, `Shared/LocalStorage/*`, `Tests/Doubles/StubHTTPClient·StubKeyValueStore` | `[자동]` 빌드 통과 | ⬜ |
-| 3 | `feat(domain): add product and favorite entities, repositories, use cases` | `Domain/**`, `Tests/Doubles/StubProductRepository·StubFavoriteRepository` | `[자동]` 빌드 + 아키텍처 검사(Domain import 규칙) | ⬜ |
-| 4 | `feat(data): implement remote product and local favorite repositories` | `Data/**`, `Tests/Data/ProductDTOMappingTests·DefaultFavoriteRepositoryTests` | `[자동]` 테스트 3개 통과(매핑·토글/영속·방송) | ⬜ |
+| 2 | `feat(shared): add HTTPClient and KeyValueStore infrastructure` | `Shared/Network/*`, `Shared/LocalStorage/*`, `Tests/Doubles/StubHTTPClient·StubKeyValueStore` | `[자동]` 빌드 통과 | ✔️ COMMITTED `999a0bf` |
+| 3a | `feat: 도메인 엔티티 추가` | `Domain/Entities/*` (4) | `[자동]` 단독 빌드 | ✔️ COMMITTED `f0d9dc1` |
+| 3b | `feat: 리포지토리 계약·유스케이스 추가` | `Domain/Repositories/*` (2) + `Domain/UseCases/*` (4) | `[자동]` 단독 빌드 | ✔️ COMMITTED `8a308cc` |
+| 3c | `test: 도메인 테스트 더블 추가` | `Tests/Doubles/StubProductRepository·StubFavoriteRepository` + AUDIT | `[자동]` 빌드 + 아키텍처 검사 23/23 + 테스트 1건 | ✔️ COMMITTED (이 커밋 — 해시는 Commit 4 갱신 시 기입) |
+| 4 | `feat(data): implement remote product and local favorite repositories` | `Data/**`, `Tests/Data/ProductDTOMappingTests·DefaultFavoriteRepositoryTests` — **착수 게이트에서 5~6파일 단위로 분할(예: 4a Remote DTO·Endpoint·DefaultProductRepository+매핑 테스트 / 4b Local·DefaultFavoriteRepository+테스트)** | `[자동]` 테스트 3개 통과(매핑·토글/영속·방송) | ⬜ |
 | 5 | `feat(shared): add actor-based image loader and RemoteImage view` | `Shared/Image/*` | `[자동]` 빌드 · `[수동]` `#Preview` 정적 확인 | ⬜ |
 | 6 | `feat(list): add product list screen with pagination, refresh, layout toggle` | `Presentation/ProductList/**`, `Presentation/Common/*`, `Tests/Presentation/ProductListViewModelTests` (+ 보기 모드 저장 경계 파일 — 결정에 따라 Domain/Data) | `[자동]` 테스트 4개(16번째 1회·새로고침 취소·찜 관찰·모드 영속) | ⬜ |
 | 7 | `feat(detail): add product detail screen with favorite sync` | `Presentation/ProductDetail/**`, `Tests/Presentation/ProductDetailViewModelTests` | `[자동]` 테스트 2개(로드·찜 토글 반영) | ⬜ |
@@ -163,7 +167,7 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **확인 권장 포인트**: `xcodebuild -showBuildSettings | grep -E "SWIFT_VERSION|STRICT_CONCURRENCY|DEFAULT_ACTOR|DEPLOYMENT_TARGET|BUNDLE_IDENTIFIER"` 출력, `grep -c PBXFileSystemSynchronizedRootGroup JGNR-HW.xcodeproj/project.pbxproj`
 - **상태**: ✔️ COMMITTED `a4c3233` (2026-09-12 14:21). 셋업 산출물은 사용자 요청으로 별도 커밋 `d2e082b`
 
-### Commit 2 — Shared 인프라 🟡 IN PROGRESS
+### Commit 2 — Shared 인프라 ✔️ COMMITTED
 - **파일**: `Shared/Network/{Endpoint,HTTPClient,URLSessionHTTPClient,NetworkError}.swift`, `Shared/LocalStorage/{KeyValueStore,UserDefaultsKeyValueStore}.swift`, `JGNR-HWTests/Doubles/{StubHTTPClient,StubKeyValueStore}.swift`
 - **완료조건**: 빌드 통과. `URLSessionHTTPClient`가 2xx 외 상태를 `NetworkError(statusCode:)` 매핑(전용 case·clientError·serverError·unexpectedStatus)으로, 디코딩 실패를 `decoding`, URL 조립 실패를 `invalidURL`로 던진다. `UserDefaultsKeyValueStore`는 `Data?`만 다룬다
 - **비목표**: 실제 API 호출·재시도·캐시 헤더. 인증 없음
@@ -172,14 +176,15 @@ enum Route: Hashable { case productDetail(id: Int) }
 - **확인 권장 포인트**: `URLSessionHTTPClient.request` 에러 분기, `Endpoint` → URL 조립에 강제 언래핑 없음
 - **상태**: 대기
 
-### Commit 3 — Domain ⬜
+### Commit 3 — Domain ✔️ COMMITTED (3a `f0d9dc1` · 3b `8a308cc` · 3c)
 - **파일**: `Domain/Entities/{ProductSummary,ProductPage,Product,ProductListLayoutMode}.swift`, `Domain/Repositories/{ProductRepository,FavoriteRepository}.swift`, `Domain/UseCases/{FetchProductPage,FetchProductDetail,ToggleFavorite,ObserveFavorites}UseCase.swift`, `JGNR-HWTests/Doubles/{StubProductRepository,StubFavoriteRepository}.swift`
 - **완료조건**: 빌드 통과, `check-architecture.sh` Domain 규칙 통과(Foundation만)
 - **비목표**: UseCase protocol 없음. 보기 모드 Repository는 Commit 6 결정 후
 - **예산**: 신규 타입 10 · protocol 2(더블 동반) · 테스트 0 · 주석 없음
-- **세부 결정 포인트**: 없음 — 기본값
-- **확인 권장 포인트**: `FavoriteRepository.observe()`가 `AsyncStream<Set<Int>>`를 돌려주는 시그니처(단일 소스 방송의 계약)
-- **상태**: 대기
+- **세부 결정 포인트**: `FavoriteRepository`를 2개 요구사항(`toggle`·`observe`)으로 축소, `currentFavoriteIDs()` 폐기 — §2 참조 (2026-09-12 착수 게이트). 더블: `actor StubProductRepository`(호출 기록 + 결과 주입), `@MainActor final class StubFavoriteRepository`(테스트가 Set을 yield)
+- **확인 권장 포인트**: `FavoriteRepository.observe()`가 `AsyncStream<Set<Int>>`를 돌려주는 시그니처(단일 소스 방송의 계약 — 첫 yield = 현재 스냅샷)
+- **리뷰 잔여(다음 커밋 확인)**: ① `ProductListLayoutMode`를 Domain에 둔 근거를 Commit 6 저장 경계 결정 시 커밋 메시지에 한 줄 ② 더블의 다중 구독 구조를 `DefaultFavoriteRepository`(Commit 4)도 동일하게 갈지 착수 게이트에서 확인 ③ `StubProductRepository` 큐 소비 규칙(마지막 결과 재사용)이 Commit 6 첫 테스트 의도와 맞는지 재확인
+- **상태**: ✔️ COMMITTED — 3a `f0d9dc1`(Entity 4) · 3b `8a308cc`(protocol 2 + UseCase 4) · 3c(더블 2 + AUDIT). 표면: 타입 12(예산 10, 초과 2 = 더블 중첩 `Failure`·`PageCall`) · protocol 2 · 테스트 0 · 주석 0
 
 ### Commit 4 — Data ⬜
 - **파일**: `Data/Remote/ProductEndpoint.swift`, `Data/Remote/DTO/{ProductSummaryDTO,ProductPageDTO,ProductDetailDTO}.swift`(각각 `toEntity()`), `Data/Local/FavoriteLocalDataSource.swift`, `Data/Repositories/{DefaultProductRepository,DefaultFavoriteRepository}.swift`, `JGNR-HWTests/Data/{ProductDTOMappingTests,DefaultFavoriteRepositoryTests}.swift`
@@ -255,10 +260,13 @@ Xcode: `JGNR-HW.xcodeproj` 열기 → 스킴 `JGNR-HW` → iPhone 17 Pro → ⌘
 | 2026-09-12 14:15 | Commit 1 검증 통과 — ios-build(앱 스킴 빌드·arch 23/23·테스트 1건)·ios-review(LOW, Critical 0). buildable folder 실증: 새 폴더 2단계 파일 추가 후 pbxproj md5 불변, 테스트 2건 실행 |
 | 2026-09-12 14:21 | ✔️ COMMITTED — 사용자 요청으로 2건 분리: `d2e082b` chore(셋업 산출물) · `a4c3233` chore(scaffold). 다음 액션: Commit 2 착수 게이트(Step 2.0) |
 | 2026-09-12 14:40 | 커밋 메시지 컨벤션 확정(type 접두사 + 20자 이내 한글 제목, 본문 4줄 이내) — 커밋 2건 재작성 `d2e082b`·`a4c3233`. Commit 2 착수 게이트 통과(결정 포인트 없음), sonnet 구현 에이전트 스폰 |
-| 2026-09-12 15:05 | Commit 2 구현 완료(sonnet) → ios-build 통과 → ios-review HIGH(LocalStorage 고위험 영역), Critical 0. `@preconcurrency import Foundation`을 검사 우회로 판정 → 사용자 결정 안 A(suiteName만 보관) 채택, 수정 위임 |
-| 2026-09-12 15:05 | LEARN: 동시성 우회 금지 목록에 `@preconcurrency import`가 없어 구현 에이전트가 에러를 경고로 낮추는 데 사용 — 문자열로 판별 가능하므로 `check-architecture.sh` PATTERN_RULES 승격 후보 (Commit 2, 게이트 미검출 아님 — ios-review가 잡음) |
-| 2026-09-12 15:20 | Commit 2 게이트 수정 요청 — NetworkError HTTP 상태 세분화(전용 case 7 + clientError/serverError/unexpectedStatus). 취향·방향 변경이라 LEARN 아님. sonnet 수정 위임 |
-| 2026-09-12 15:35 | NetworkError 세분화 반영·빌드 통과. 사용자 결정: 로컬 저장 키·인코딩은 Data/Local 소유, Commit 6에서 `LocalStorageKey` enum + Codable 헬퍼 추출(§5 Commit 6에 기록). Commit 2 커밋 승인 |
+| 2026-09-12 14:30 | Commit 2 구현 완료(sonnet) → ios-build 통과 → ios-review HIGH(LocalStorage 고위험 영역), Critical 0. `@preconcurrency import Foundation`을 검사 우회로 판정 → 사용자 결정 안 A(suiteName만 보관) 채택, 수정 위임 |
+| 2026-09-12 14:30 | LEARN: 동시성 우회 금지 목록에 `@preconcurrency import`가 없어 구현 에이전트가 에러를 경고로 낮추는 데 사용 — 문자열로 판별 가능하므로 `check-architecture.sh` PATTERN_RULES 승격 후보 (Commit 2, 게이트 미검출 아님 — ios-review가 잡음) |
+| 2026-09-12 14:38 | Commit 2 게이트 수정 요청 — NetworkError HTTP 상태 세분화(전용 case 7 + clientError/serverError/unexpectedStatus). 취향·방향 변경이라 LEARN 아님. sonnet 수정 위임 |
+| 2026-09-12 14:46 | NetworkError 세분화 반영·빌드 통과. 사용자 결정: 로컬 저장 키·인코딩은 Data/Local 소유, Commit 6에서 `LocalStorageKey` enum + Codable 헬퍼 추출(§5 Commit 6에 기록). Commit 2 커밋 승인 |
+| 2026-09-12 14:47 | ✔️ COMMITTED `999a0bf` feat: 네트워크·로컬 저장 인프라 추가. 다음 액션: Commit 3 착수 게이트 |
+| 2026-09-12 14:53 | Resume — AUDIT 마커·git log 대사 일치(1·2 COMMITTED). 스코프 잠금 없음. Commit 3 착수 게이트 통과 — 결정 1건: `FavoriteRepository` 2개 요구사항으로 축소(`currentFavoriteIDs` 폐기, observe 첫 yield = 현재 스냅샷). sonnet 구현 에이전트 스폰 |
+| 2026-09-12 15:08 | Commit 3 검증 통과 — ios-build(앱 스킴 빌드·arch 23/23·테스트 1건, 자동 수정 0)·ios-review(LOW, Critical 0, High 1: 더블 큐 소비 규칙 비자명 — 보고만). 커밋 게이트에서 사용자 반려: 13파일은 과다 → 3분할 + 이후 커밋당 5~6파일 이하 규칙(§2 기록). 3a `f0d9dc1`·3b `8a308cc` 단독 빌드 확인 후 커밋, 3c(더블+AUDIT) 커밋. 다음 액션: Commit 4 착수 게이트(분할안 제시) |
 
 > 일반 이벤트 외에 **`LEARN:` 이벤트**를 기록한다 — 검증 파이프라인이 잡지 못해 사용자가 지적한 결함, 자동 수정이 반복된 빌드 에러 등 "규칙으로 만들 후보".
 
