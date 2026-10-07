@@ -1,0 +1,35 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+.swiftpm/
+.build/
+
+# macOS
+.DS_Store
+
+# 과제 설명 원문 — 로컬에만 두고 추적하지 않는다
+README.md
+
+# ios-agent-system — 개인(워크트리) 상태. 지식 파일·훅·settings.json은 커밋한다
+.claude/ios-agent-system/metrics.jsonl
+.claude/ios-agent-system/.gate-strikes.json
+.claude/ios-agent-system/.gate-scope.json
+.claude/ios-agent-system/pr-drafts/
+.claude/settings.local.json
+
+.claude/settings.json
+.claude/hooks/
+.claude/ios-agent-system/protected.yml
+.claude/ios-agent-system/harness/
+.claude/ios-agent-system/trace-points.md
